@@ -1,3 +1,5 @@
+pub mod mqtt;
+
 #[cfg(test)]
 mod tests {
     #[test]

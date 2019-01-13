@@ -1,5 +1,5 @@
 [package]
-name = "compute"
+name = "edge_data_store"
 version = "0.1.0"
 authors = ["Fredrick Stakem <fstakem@gmail.com>"]
 edition = "2018"

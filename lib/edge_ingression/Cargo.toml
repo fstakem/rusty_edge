@@ -1,5 +1,5 @@
 [package]
-name = "ingestion"
+name = "edge_ingression"
 version = "0.1.0"
 authors = ["Fredrick Stakem <fstakem@gmail.com>"]
 edition = "2018"
