@@ -1,41 +1,88 @@
 extern crate paho_mqtt;
+// Add logger
 
-use std::process;
 use std::thread;
 use std::time::Duration;
 
+
+pub struct ServiceInfo {
+    pub name: String,
+    pub debug: bool,
+    pub host: String,
+    pub protocol: Protocol
+}
+
+pub struct Protocol {
+    pub name: String,
+    pub port: u32,
+    pub pub_topics: Vec<String>,
+    pub sub_topics: Vec<String>
+}
+
 pub struct Client {
-    name: String,
+    pub name: String,
     connected: bool,
-    client: paho_mqtt::Client
+    paho: paho_mqtt::Client,
+    pub service_info: ServiceInfo
 }
 
 
 impl Client {
-    pub fn new(name: String) -> Client {
+    pub fn new(name: String, service_info: ServiceInfo) -> Option<Client> {
         println!("Creating new mqtt client...");
 
-        let host = "tcp://localhost:1883";
+        let host = ["tcp://", &service_info.host, ":", 
+                    &service_info.protocol.port.to_string()].concat();
+
+        println!("Host: {}", host);
+
         let create_opts = paho_mqtt::CreateOptionsBuilder::new()
             .server_uri(host)
             .client_id("rust_sync_consumer")
             .finalize();
-        let client = paho_mqtt::Client::new(create_opts).unwrap_or_else(|e| {
-            println!("Error creating the client: {:?}", e);
-            process::exit(1);
-        });
+
+        let paho = match paho_mqtt::Client::new(create_opts) {
+            Ok(paho) => paho,
+            Err(e) => {
+                println!("Error creating the client: {:?}", e);
+                return None
+           },
+        };
 
         let mqtt_client = Client {
             name:  name,
             connected: false,
-            client: client
+            paho: paho,
+            service_info: service_info
         };
 
-        return mqtt_client;
+        return Some(mqtt_client);
     }
 
-    pub fn start(&mut self) -> () {
-        // Define the set of options for the connection
+    pub fn start(&mut self) -> Result<(), paho_mqtt::MqttError> {
+        
+        if !self.connected {
+            match self.connect() {
+                Ok(_) => self.connected = true,
+                Err(e) => {
+                    println!("Error connecting to server: {:?}", e);
+                    return Err(e)
+                }
+            }
+        }
+
+        match self.setup_connection() {
+            Ok(_) => self.connected = true,
+            Err(e) => {
+                println!("Error connecting to server: {:?}", e);
+                return Err(e)
+            }
+        }
+
+        return Ok(());
+    }
+
+    fn connect(&self) -> Result<(), paho_mqtt::MqttError> {
         let lwt = paho_mqtt::MessageBuilder::new()
             .topic("test")
             .payload("Sync consumer lost connection")
@@ -47,38 +94,53 @@ impl Client {
             .will_message(lwt)
             .finalize();
 
-        // Make the connection to the broker
         println!("Connecting to the MQTT broker...");
-        if let Err(e) = self.client.connect(conn_opts) {
+
+        if let Err(e) = self.paho.connect(conn_opts) {
             println!("Error connecting to the broker: {:?}", e);
-            process::exit(1);
+            return Err(e);
         };
 
-        // Initialize the consumer before subscribing to topics
-        let rx = self.client.start_consuming();
+        return Ok(());
+    }
 
-        // Register subscriptions on the server
+    fn setup_connection(&mut self) -> Result<(), paho_mqtt::MqttError> {
+        let consumer = self.paho.start_consuming();
+
         println!("Subscribing to topics...");
-
-        let subscriptions = [ "test", "hello" ];
+        let subscriptions = &self.service_info.protocol.sub_topics;
         let qos = [1, 1];
 
-        if let Err(e) = self.client.subscribe_many(&subscriptions, &qos) {
+        if let Err(e) = self.paho.subscribe_many(&subscriptions, &qos) {
             println!("Error subscribing to topics: {:?}", e);
-            self.client.disconnect(None).unwrap();
-            process::exit(1);
+            println!("Disconnecting from server...");
+            
+            match self.paho.disconnect(None) {
+                Ok(_) => {
+                    println!("Disconnection successful.");
+                    self.connected = false;
+                    return Err(e);
+                }
+                Err(e) => {
+                    println!("Error disconnecting from server: {:?}", e);
+                    return Err(e)
+                }
+            }
         }
 
         println!("Waiting for messages...");
-        for msg in rx.iter() {
+
+        for msg in consumer.iter() {
             if let Some(msg) = msg {
                 println!("{}", msg);
             }
-            else if self.client.is_connected() ||
+            else if self.paho.is_connected() ||
                     !self.try_reconnect() {
                 break;
             }
         }
+
+        return Ok(());
     }
 
     pub fn stop(&self) -> () {
@@ -88,13 +150,15 @@ impl Client {
     fn try_reconnect(&self) -> bool
     {
         println!("Connection lost. Waiting to retry connection");
+
         for _ in 0..12 {
             thread::sleep(Duration::from_millis(5000));
-            if self.client.reconnect().is_ok() {
+            if self.paho.reconnect().is_ok() {
                 println!("Successfully reconnected");
                 return true;
             }
         }
+
         println!("Unable to reconnect after several attempts.");
         false
     }
@@ -106,8 +170,24 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let client = Client::new("client".to_string());
-        assert_eq!(client.name, "client".to_string());
+        let protocol = Protocol {
+            name: String::from("mqtt"),
+            port: 1883,
+            pub_topics: vec![String::from("test")],
+            sub_topics: vec![String::from("test"), 
+                             String::from("test_response")]
+            
+        };
+
+        let service_info = ServiceInfo {
+            name: String::from("Edge Ingestion"),
+            debug: true,
+            host: String::from("localhost"),
+            protocol: protocol
+        };
+
+        let client = Client::new(String::from("test_client"), service_info).unwrap();
+        assert_eq!(client.name, String::from("test_client"));
     }
 }
 
