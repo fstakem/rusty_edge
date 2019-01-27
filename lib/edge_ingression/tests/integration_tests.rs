@@ -9,8 +9,8 @@ fn test_mqtt_client() {
     let protocol = Protocol {
         name: String::from("mqtt"),
         port: 1883,
-        pub_topics: vec![String::from("test")],
-        sub_topics: vec![String::from("test"), 
+        pub_topic: String::from("test/"),
+        sub_topics: vec![String::from("test/"), 
                          String::from("test_response")]
         
     };
@@ -24,4 +24,5 @@ fn test_mqtt_client() {
 
     let mut client = Client::new(String::from("test_client"), service_info).unwrap();
     let result = client.start();
+    loop {}
 }

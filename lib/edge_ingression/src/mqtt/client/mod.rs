@@ -1,10 +1,11 @@
 extern crate paho_mqtt;
-// Add logger
 
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 
-
+#[derive(Clone)]
 pub struct ServiceInfo {
     pub name: String,
     pub debug: bool,
@@ -12,106 +13,76 @@ pub struct ServiceInfo {
     pub protocol: Protocol
 }
 
+// deserializer
+// schema
+
+#[derive(Clone)]
 pub struct Protocol {
     pub name: String,
     pub port: u32,
-    pub pub_topics: Vec<String>,
+    pub pub_topic: String,
     pub sub_topics: Vec<String>
+}
+
+struct InnerClient {
+    paho: paho_mqtt::Client,
+    connected: bool
 }
 
 pub struct Client {
     pub name: String,
-    connected: bool,
-    paho: paho_mqtt::Client,
-    pub service_info: ServiceInfo
+    pub service_info: ServiceInfo,
+    inner: Arc<Mutex<InnerClient>>
 }
 
-
-impl Client {
-    pub fn new(name: String, service_info: ServiceInfo) -> Option<Client> {
-        println!("Creating new mqtt client...");
-
-        let host = ["tcp://", &service_info.host, ":", 
-                    &service_info.protocol.port.to_string()].concat();
-
-        println!("Host: {}", host);
-
-        let create_opts = paho_mqtt::CreateOptionsBuilder::new()
-            .server_uri(host)
-            .client_id("rust_sync_consumer")
-            .finalize();
-
-        let paho = match paho_mqtt::Client::new(create_opts) {
-            Ok(paho) => paho,
-            Err(e) => {
-                println!("Error creating the client: {:?}", e);
-                return None
-           },
-        };
-
-        let mqtt_client = Client {
-            name:  name,
-            connected: false,
-            paho: paho,
-            service_info: service_info
-        };
-
-        return Some(mqtt_client);
+impl InnerClient {
+    fn do_something(&mut self) -> () {
+        println!("In thread");
     }
 
-    pub fn start(&mut self) -> Result<(), paho_mqtt::MqttError> {
-        
+    fn connect(&mut self) -> Result<(), ProtocolError> {
         if !self.connected {
-            match self.connect() {
+            let lwt = paho_mqtt::Message::new("test", "Sync subscriber lost connection", 1);
+
+            let conn_opts = paho_mqtt::ConnectOptionsBuilder::new()
+                .keep_alive_interval(Duration::from_secs(20))
+                .clean_session(false)
+                .will_message(lwt)
+                .finalize();
+
+            println!("Connecting to the MQTT broker...");
+
+            match self.paho.connect(conn_opts) {
                 Ok(_) => self.connected = true,
                 Err(e) => {
                     println!("Error connecting to server: {:?}", e);
-                    return Err(e)
+                    let error = ErrorKind::Mqtt;
+                    let result = Result::Err(ProtocolError{
+                        kind: error,
+                        msg: "Error connecting to server".to_string()
+                    });
+                    return result;
                 }
             }
+
+             println!("Connection successful!");
+
+            return Ok(());
         }
 
-        match self.setup_connection() {
-            Ok(_) => self.connected = true,
-            Err(e) => {
-                println!("Error connecting to server: {:?}", e);
-                return Err(e)
-            }
-        }
+        println!("Already connected to the server.");
 
         return Ok(());
     }
 
-    fn connect(&self) -> Result<(), paho_mqtt::MqttError> {
-        let lwt = paho_mqtt::MessageBuilder::new()
-            .topic("test")
-            .payload("Sync consumer lost connection")
-            .finalize();
-
-        let conn_opts = paho_mqtt::ConnectOptionsBuilder::new()
-            .keep_alive_interval(Duration::from_secs(20))
-            .clean_session(false)
-            .will_message(lwt)
-            .finalize();
-
-        println!("Connecting to the MQTT broker...");
-
-        if let Err(e) = self.paho.connect(conn_opts) {
-            println!("Error connecting to the broker: {:?}", e);
-            return Err(e);
-        };
-
-        return Ok(());
-    }
-
-    fn setup_connection(&mut self) -> Result<(), paho_mqtt::MqttError> {
+    fn run_subscriber(&mut self, protocol: Protocol) -> Result<(), ProtocolError> {
         let consumer = self.paho.start_consuming();
 
         println!("Subscribing to topics...");
-        let subscriptions = &self.service_info.protocol.sub_topics;
+        let subscriptions = protocol.sub_topics;
         let qos = [1, 1];
 
-        if let Err(e) = self.paho.subscribe_many(&subscriptions, &qos) {
+         if let Err(e) = self.paho.subscribe_many(&subscriptions, &qos) {
             println!("Error subscribing to topics: {:?}", e);
             println!("Disconnecting from server...");
             
@@ -119,11 +90,19 @@ impl Client {
                 Ok(_) => {
                     println!("Disconnection successful.");
                     self.connected = false;
-                    return Err(e);
+                    let error = ErrorKind::Mqtt;
+                    return Result::Err(ProtocolError{
+                        kind: error,
+                        msg: "Error subscribing to topics".to_string()
+                    });
                 }
                 Err(e) => {
                     println!("Error disconnecting from server: {:?}", e);
-                    return Err(e)
+                    let error = ErrorKind::Mqtt;
+                    return Result::Err(ProtocolError{
+                        kind: error,
+                        msg: "Error subscribing to topics".to_string()
+                    });
                 }
             }
         }
@@ -140,27 +119,120 @@ impl Client {
             }
         }
 
+        println!("Finished subscriber.");
+
         return Ok(());
     }
 
-    pub fn stop(&self) -> () {
-
-    }
-
-    fn try_reconnect(&self) -> bool
-    {
+    fn try_reconnect(&self) -> bool {
         println!("Connection lost. Waiting to retry connection");
 
         for _ in 0..12 {
             thread::sleep(Duration::from_millis(5000));
-            if self.paho.reconnect().is_ok() {
+
+             if self.paho.reconnect().is_ok() {
                 println!("Successfully reconnected");
                 return true;
             }
         }
 
         println!("Unable to reconnect after several attempts.");
-        false
+        return false;
+    }
+}
+
+unsafe impl Send for InnerClient {}
+
+#[derive(Debug)]
+pub struct ProtocolError {
+    pub kind: ErrorKind,
+    pub msg: String
+}
+
+#[derive(Debug)]
+pub enum ErrorKind {
+    General,
+    Thread,
+    Mqtt,
+}
+
+
+impl Client {
+    pub fn new(name: String, service_info: ServiceInfo) -> Option<Client> {
+        println!("Creating new mqtt client...");
+
+        let conn_str = ["tcp://", &service_info.host, ":", 
+                    &service_info.protocol.port.to_string()].concat();
+
+        println!("Connection string: {}", conn_str);
+
+        let create_opts = paho_mqtt::CreateOptionsBuilder::new()
+            .server_uri(conn_str)
+            .client_id("rust_sync_consumer")
+            .finalize();
+
+        let paho = match paho_mqtt::Client::new(create_opts) {
+            Ok(paho) => paho,
+            Err(e) => {
+                println!("Error creating the client: {:?}", e);
+                return None
+           },
+        };
+
+        let mqtt_client = Client {
+            name:  name,
+            service_info: service_info,
+            inner: Arc::new( Mutex::new( InnerClient {
+                paho: paho,
+                connected: false
+                
+            }))
+        };
+
+        return Some(mqtt_client);
+    }
+
+    pub fn start(&mut self) -> Result<(), ProtocolError> {
+        println!("Mqtt client starting...");
+
+        match self.inner.lock() {
+            Ok(mut client) => {
+                client.connect();
+            }
+            Err(e) => {
+                println!("Error requesting lock");
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: "Error requesting lock".to_string()
+                });
+                return result;
+            }
+        }
+
+        let local_self = self.inner.clone();
+        let protocol = self.service_info.protocol.clone();
+
+        let child = thread::spawn(move || {
+            match local_self.lock() {
+               Ok(mut client) => client.run_subscriber(protocol),
+               Err(e) => {
+                    println!("Error requesting lock");
+                    let error = ErrorKind::Thread;
+                    let result = Result::Err(ProtocolError{
+                        kind: error,
+                        msg: "Error connecting to server".to_string()
+                    });
+                    return result;
+               }
+            }
+        });
+
+        return Ok(());
+    }
+
+    pub fn stop(&self) -> () {
+        println!("Mqtt client stopping...");
     }
 }
 
@@ -173,7 +245,7 @@ mod tests {
         let protocol = Protocol {
             name: String::from("mqtt"),
             port: 1883,
-            pub_topics: vec![String::from("test")],
+            pub_topic: String::from("test"),
             sub_topics: vec![String::from("test"), 
                              String::from("test_response")]
             
@@ -190,30 +262,3 @@ mod tests {
         assert_eq!(client.name, String::from("test_client"));
     }
 }
-
-// Abstract
-// self.name = service_info['name']
-// self.service_info = service_info
-// self.streams = {}
-// self.deserializer = Abstract.create_deserializer(service_info)
-
-// Mqtt
-// self.connected = False
-// self.client = None
-// self.queue = Queue()
-// self.protocol = service_info['protocol']
-
-// Functions
-// start
-// stop
-// handle_msg
-// add_stream
-// remove_stream
-// is_connected
-// connect
-// disconnect
-// send_msg
-// receive_msgs
-// stop_receiving_msgs
-// handle_msg
-// on_mqtt_msg
