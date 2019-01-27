@@ -184,6 +184,20 @@ impl InnerClient {
         });
         return result;
     }
+
+    fn disconnect(&self) -> Result<(), ProtocolError> {
+        if self.connected {
+            self.paho.disconnect(None);
+            return Result::Ok(());
+        }
+
+        let error = ErrorKind::Mqtt;
+        let result = Result::Err(ProtocolError{
+            kind: error,
+            msg: "Error not connected".to_string()
+        });
+        return result;
+    }
 }
 
 
@@ -261,14 +275,47 @@ impl Client {
         return Ok(());
     }
 
-    pub fn stop(&self) -> () {
+    pub fn stop(&self) -> Result<(), ProtocolError> {
         println!("Mqtt client stopping...");
+
+
+        match self.inner.lock() {
+            Ok(client) => {
+                return client.disconnect();
+            }
+            Err(e) => {
+                println!("Error requesting lock");
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: "Error requesting lock".to_string()
+                });
+                return result;
+            }
+        }
     }
 
     pub fn send_msg(&self, topic: &str, msg: &str) -> Result<(), ProtocolError> {
         match self.inner.lock() {
             Ok(client) => {
                 return client.send_msg(topic, msg);
+            }
+            Err(e) => {
+                println!("Error requesting lock");
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: "Error requesting lock".to_string()
+                });
+                return result;
+            }
+        }
+    }
+
+    pub fn is_connected(&self) -> Result<(bool), ProtocolError> {
+        match self.inner.lock() {
+            Ok(client) => {
+                return Result::Ok(client.connected);
             }
             Err(e) => {
                 println!("Error requesting lock");
