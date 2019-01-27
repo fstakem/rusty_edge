@@ -24,5 +24,8 @@ fn test_mqtt_client() {
 
     let mut client = Client::new(String::from("test_client"), service_info).unwrap();
     let result = client.start();
+    let topic = "test/";
+    let msg = "Test msg";
+    client.send_msg(topic, msg);
     loop {}
 }
