@@ -11,8 +11,8 @@ use std::collections::HashMap;
 
 pub struct Stream {
     pub name: String,
-    pub store_type: String,
-    pub enricher_type: String
+    pub sensor_id: String,
+    pub store_type: String
 }
 
 #[derive(Clone)]
@@ -33,10 +33,6 @@ pub struct ServiceInfo {
 // self.parsers = {}
 // self.fields = []
 // self.event_class = None
-
-pub struct JsonDeserializer {
-
-}
 
 #[derive(Clone)]
 pub struct Protocol {
@@ -75,23 +71,24 @@ pub enum ErrorKind {
 
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum MsgType {
+    SensorData,
+    Config,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Msg {
     pub timestamp: String,
     pub version: String,
-    pub msg_type: String,
-    pub data: String
+    pub msg_type: MsgType,
+    pub data: serde_json::Value
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct DataMsg {
-    timestamp: String,
-    location: String,
-}
-
-
-#[derive(Serialize, Deserialize, Debug)]
-struct SensorData {
-
+pub struct SensorData {
+    pub sensor_id: String,
+    pub data: Vec<f64>
 }
 
 
@@ -184,16 +181,21 @@ impl InnerClient {
         // Handle in stream
         println!("{}", msg);
 
-        match serde_json::from_str::<Msg>(&msg.payload_str()) {
-            Ok(msg) => {
-                println!("{:?}", msg);
-                return ();
+        let outer_msg = match serde_json::from_str::<Msg>(&msg.payload_str()) {
+            Ok(outer_msg) => {
+                println!("Message received =>");
+                println!("\ttimestamp: {:?}", outer_msg.timestamp);
+                println!("\tversion: {:?}", outer_msg.version);
+                println!("\tmessage type: {:?}", outer_msg.msg_type);
+                println!("\tdata: {:?}", outer_msg.data);
+                outer_msg
             },
             Err(e) => {
                 println!("Error parsing message: {:?}", e);
                 return ();
             }
         };
+
     }
 
     fn try_reconnect(&self) -> bool {

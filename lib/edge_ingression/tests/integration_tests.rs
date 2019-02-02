@@ -4,6 +4,10 @@ use edge_ingression::mqtt::client::Protocol;
 use edge_ingression::mqtt::client::ServiceInfo;
 use edge_ingression::mqtt::client::Client;
 use edge_ingression::mqtt::client::Msg;
+use edge_ingression::mqtt::client::MsgType;
+use edge_ingression::mqtt::client::SensorData;
+use edge_ingression::mqtt::client::ErrorKind;
+use edge_ingression::mqtt::client::ProtocolError;
 
 #[test]
 fn test_mqtt_client() {
@@ -26,14 +30,21 @@ fn test_mqtt_client() {
     let mut client = Client::new(String::from("test_client"), service_info).unwrap();
     let result = client.start();
     let topic = "test/";
-    let msg = "Test msg";
-    let other = Msg {
-        timestamp: "".to_string(),
-        version: "0.1.0".to_string(),
-        msg_type: "simple".to_string(),
-        data: "here".to_string()   
+
+    let sensor_data = SensorData {
+        sensor_id: String::from("Remote sensor a"),
+        data: vec![10.0, 12.0]
     };
 
-    client.send_msg(Some(topic), &other);
+    let data_value = serde_json::json!(&sensor_data);
+
+    let msg = Msg {
+        timestamp: "".to_string(),
+        version: "0.1.0".to_string(),
+        msg_type: MsgType::SensorData,
+        data: data_value  
+    };
+
+    client.send_msg(Some(topic), &msg);
     loop {}
 }
