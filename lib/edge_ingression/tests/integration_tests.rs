@@ -3,6 +3,7 @@ extern crate edge_ingression;
 use edge_ingression::mqtt::client::Protocol;
 use edge_ingression::mqtt::client::ServiceInfo;
 use edge_ingression::mqtt::client::Client;
+use edge_ingression::mqtt::client::Msg;
 
 #[test]
 fn test_mqtt_client() {
@@ -26,6 +27,13 @@ fn test_mqtt_client() {
     let result = client.start();
     let topic = "test/";
     let msg = "Test msg";
-    client.send_msg(topic, msg);
+    let other = Msg {
+        timestamp: "".to_string(),
+        version: "0.1.0".to_string(),
+        msg_type: "simple".to_string(),
+        data: "here".to_string()   
+    };
+
+    client.send_msg(Some(topic), &other);
     loop {}
 }

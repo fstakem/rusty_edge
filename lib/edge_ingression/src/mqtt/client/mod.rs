@@ -1,9 +1,19 @@
 extern crate paho_mqtt;
+extern crate serde;
+extern crate serde_json;
+extern crate serde_derive;
 
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
+use std::collections::HashMap;
+
+pub struct Stream {
+    pub name: String,
+    pub store_type: String,
+    pub enricher_type: String
+}
 
 #[derive(Clone)]
 pub struct ServiceInfo {
@@ -15,6 +25,18 @@ pub struct ServiceInfo {
 
 // deserializer
 // schema
+
+// self.name = service_info['name']
+// self.schema = service_info['schema']
+// self.checked = True
+// self.types = {}
+// self.parsers = {}
+// self.fields = []
+// self.event_class = None
+
+pub struct JsonDeserializer {
+
+}
 
 #[derive(Clone)]
 pub struct Protocol {
@@ -32,6 +54,7 @@ struct InnerClient {
 pub struct Client {
     pub name: String,
     pub service_info: ServiceInfo,
+    pub streams: HashMap<String, Stream>,
     inner: Arc<Mutex<InnerClient>>
 }
 
@@ -48,6 +71,27 @@ pub enum ErrorKind {
     General,
     Thread,
     Mqtt,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Msg {
+    pub timestamp: String,
+    pub version: String,
+    pub msg_type: String,
+    pub data: String
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct DataMsg {
+    timestamp: String,
+    location: String,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SensorData {
+
 }
 
 
@@ -123,7 +167,7 @@ impl InnerClient {
 
         for msg in consumer.iter() {
             if let Some(msg) = msg {
-                println!("{}", msg);
+                self.handle_msg(msg);
             }
             else if self.paho.is_connected() ||
                     !self.try_reconnect() {
@@ -134,6 +178,22 @@ impl InnerClient {
         println!("Finished subscriber.");
 
         return Ok(());
+    }
+
+    fn handle_msg(&self, msg: paho_mqtt::Message) -> () {
+        // Handle in stream
+        println!("{}", msg);
+
+        match serde_json::from_str::<Msg>(&msg.payload_str()) {
+            Ok(msg) => {
+                println!("{:?}", msg);
+                return ();
+            },
+            Err(e) => {
+                println!("Error parsing message: {:?}", e);
+                return ();
+            }
+        };
     }
 
     fn try_reconnect(&self) -> bool {
@@ -152,13 +212,28 @@ impl InnerClient {
         return false;
     }
 
-    fn send_msg(&self, topic: &str, msg: &str) -> Result<(), ProtocolError> {
+    fn send_msg(&self, topic: &str, msg: &Msg) -> Result<(), ProtocolError> {
         println!("Sending an mqtt msg...");
+
+        let msg_str = match serde_json::to_string(&msg) {
+            Ok(msg_str) => {
+                println!("{:?}", msg_str);
+                msg_str
+            },
+            Err(e) => {
+                let error = ErrorKind::Mqtt;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: "Error publishing message".to_string()
+                });
+                return result;
+            }
+        };
 
         if self.connected {
             let mqtt_msg = paho_mqtt::MessageBuilder::new()
                 .topic(topic)
-                .payload(msg)
+                .payload(msg_str.clone())
                 .qos(1)
                 .finalize();
 
@@ -171,7 +246,7 @@ impl InnerClient {
                 return result;
             }
 
-            let output = ["Topic: ", &topic, " Msg: ", &msg].concat();
+            let output = ["Topic: ", &topic, " Msg: ", &msg_str].concat();
             println!("{}", output);
 
             return Ok(());
@@ -226,6 +301,7 @@ impl Client {
         let mqtt_client = Client {
             name:  name,
             service_info: service_info,
+            streams: HashMap::new(),
             inner: Arc::new( Mutex::new( InnerClient {
                 paho: paho,
                 connected: false
@@ -295,10 +371,15 @@ impl Client {
         }
     }
 
-    pub fn send_msg(&self, topic: &str, msg: &str) -> Result<(), ProtocolError> {
+    pub fn send_msg(&self, topic: Option<&str>, msg: &Msg) -> Result<(), ProtocolError> {
         match self.inner.lock() {
             Ok(client) => {
-                return client.send_msg(topic, msg);
+
+                if let Some(new_topic) = topic {
+                    return client.send_msg(new_topic, msg);
+                }
+
+                return client.send_msg(&self.service_info.protocol.pub_topic.to_string(), msg);
             }
             Err(e) => {
                 println!("Error requesting lock");
@@ -327,6 +408,19 @@ impl Client {
                 return result;
             }
         }
+    }
+
+    pub fn add_stream(&mut self, key: &str, stream: Stream) -> Result<(), ProtocolError> {
+        self.streams.insert(key.to_string(), stream);
+        return Result::Ok(());
+    }
+
+    pub fn remove_stream(&self) -> Result<(), ProtocolError> {
+        return Result::Ok(());
+    }
+
+    pub fn remove_all_stream(&self) -> Result<(), ProtocolError> {
+        return Result::Ok(());
     }
 }
 

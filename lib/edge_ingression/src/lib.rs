@@ -1,5 +1,8 @@
 pub mod mqtt;
 
+#[macro_use]
+extern crate serde_derive;
+
 #[cfg(test)]
 mod tests {
     #[test]
