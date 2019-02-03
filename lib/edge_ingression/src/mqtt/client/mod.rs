@@ -9,10 +9,16 @@ use std::thread;
 use std::time::Duration;
 use std::collections::HashMap;
 
+
+pub enum StoreType {
+    InProcessMemory,
+    Redis
+}
+
 pub struct Stream {
     pub name: String,
     pub sensor_id: String,
-    pub store_type: String
+    pub store_type: StoreType
 }
 
 #[derive(Clone)]
@@ -47,10 +53,10 @@ struct InnerClient {
     connected: bool
 }
 
-pub struct Client {
+pub struct Client<'a> {
     pub name: String,
     pub service_info: ServiceInfo,
-    pub streams: HashMap<String, Stream>,
+    pub streams: HashMap<String, &'a Stream>,
     inner: Arc<Mutex<InnerClient>>
 }
 
@@ -298,8 +304,8 @@ impl InnerClient {
 }
 
 
-impl Client {
-    pub fn new(name: String, service_info: ServiceInfo) -> Option<Client> {
+impl<'a> Client<'a>{
+    pub fn new(name: String, service_info: ServiceInfo) -> Option<Client<'a>> {
         println!("Creating new mqtt client...");
 
         let conn_str = ["tcp://", &service_info.host, ":", 
@@ -393,6 +399,16 @@ impl Client {
         }
     }
 
+    pub fn restart(&mut self) -> Result<(), ProtocolError> {
+        println!("Restarting client...");
+        match self.stop() {
+            Ok(_) => {
+                self.start()
+            }
+            Err(e) => Err(e)
+        }
+    }
+
     pub fn send_msg(&self, topic: Option<&str>, msg: &Msg) -> Result<(), ProtocolError> {
         match self.inner.lock() {
             Ok(client) => {
@@ -432,17 +448,35 @@ impl Client {
         }
     }
 
-    pub fn add_stream(&mut self, key: &str, stream: Stream) -> Result<(), ProtocolError> {
+    pub fn add_stream(&mut self, key: &str, stream: &'a Stream) -> Result<(), ProtocolError> {
         self.streams.insert(key.to_string(), stream);
-        return Result::Ok(());
+        println!("Adding stream: {:?}", key);
+
+        match self.restart() {
+            Ok(_) => Result::Ok(()),
+            Err(e) => Err(e)
+        }
     }
 
-    pub fn remove_stream(&self) -> Result<(), ProtocolError> {
-        return Result::Ok(());
+    pub fn remove_stream(&mut self, key: &str) -> Result<(), ProtocolError> {
+        self.streams.remove(key);
+        println!("Removing stream: {:?}", key);
+        
+        match self.restart() {
+            Ok(_) => Result::Ok(()),
+            Err(e) => Err(e)
+        }
     }
 
-    pub fn remove_all_stream(&self) -> Result<(), ProtocolError> {
-        return Result::Ok(());
+    pub fn remove_all_stream(&mut self) -> Result<(), ProtocolError> {
+        for (k, _) in self.streams.drain().take(1) {
+            println!("Removing stream: {:?}", k);
+        }
+
+        match self.restart() {
+            Ok(_) => Result::Ok(()),
+            Err(e) => Err(e)
+        }
     }
 }
 

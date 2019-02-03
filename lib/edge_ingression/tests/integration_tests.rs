@@ -8,6 +8,9 @@ use edge_ingression::mqtt::client::MsgType;
 use edge_ingression::mqtt::client::SensorData;
 use edge_ingression::mqtt::client::ErrorKind;
 use edge_ingression::mqtt::client::ProtocolError;
+use edge_ingression::mqtt::client::Stream;
+use edge_ingression::mqtt::client::StoreType;
+
 
 #[test]
 fn test_mqtt_client() {
@@ -27,7 +30,14 @@ fn test_mqtt_client() {
         protocol: protocol
     };
 
+    let simple_stream = Stream {
+        name: String::from("Temp sensor"),
+        sensor_id: String::from("temp_sensor_1"),
+        store_type: StoreType::InProcessMemory
+    };
+
     let mut client = Client::new(String::from("test_client"), service_info).unwrap();
+    client.add_stream(&simple_stream.sensor_id, &simple_stream);
     let result = client.start();
     let topic = "test/";
 
