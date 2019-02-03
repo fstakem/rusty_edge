@@ -178,6 +178,7 @@ impl InnerClient {
     }
 
     fn handle_msg(&self, msg: paho_mqtt::Message) -> () {
+        // TODO
         // Handle in stream
         println!("{}", msg);
 
@@ -195,6 +196,25 @@ impl InnerClient {
                 return ();
             }
         };
+
+        match outer_msg.msg_type {
+            MsgType::SensorData => {
+                match serde_json::from_value::<SensorData>(outer_msg.data) {
+                    Ok(data) => {
+                        println!("Sensor data =>");
+                        println!("\tsensor id: {:?}", data.sensor_id);
+                        println!("\tdata: {:?}", data.data)
+                    },
+                    Err(e) => {
+                        println!("Error parsing sensor data: {:?}", e);
+                        return ();
+                    }
+                }
+            },
+            _ => {
+                println!("Msg type not handled!")
+            }
+        }
 
     }
 
