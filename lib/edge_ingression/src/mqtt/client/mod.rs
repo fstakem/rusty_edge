@@ -29,16 +29,16 @@ pub struct ServiceInfo {
     pub protocol: Protocol
 }
 
-// deserializer
-// schema
 
-// self.name = service_info['name']
-// self.schema = service_info['schema']
-// self.checked = True
-// self.types = {}
-// self.parsers = {}
-// self.fields = []
-// self.event_class = None
+pub struct Route<'a, 'b>  {
+    pub name: String,
+    pub endpoint: &'b Client<'b>,
+    pub stream: &'a Stream
+}
+
+pub struct Router {
+
+}
 
 #[derive(Clone)]
 pub struct Protocol {
@@ -54,9 +54,9 @@ struct InnerClient {
 }
 
 pub struct Client<'a> {
-    pub name: String,
-    pub service_info: ServiceInfo,
-    pub streams: HashMap<String, &'a Stream>,
+    name: String,
+    service_info: ServiceInfo,
+    streams: HashMap<String, &'a Stream>,
     inner: Arc<Mutex<InnerClient>>
 }
 
@@ -95,6 +95,29 @@ pub struct Msg {
 pub struct SensorData {
     pub sensor_id: String,
     pub data: Vec<f64>
+}
+
+
+impl Router {
+    pub fn new(&self) {
+
+    }
+
+    pub fn create_endpoint(&self) {
+
+    }
+
+    pub fn remove_endpoint(&self) {
+
+    }
+
+    pub fn create_route(&self) {
+
+    }
+
+    pub fn remove_route(&self) {
+
+    }
 }
 
 
@@ -338,6 +361,10 @@ impl<'a> Client<'a>{
         };
 
         return Some(mqtt_client);
+    }
+
+    pub fn get_name(&self) -> &String {
+        &self.name
     }
 
     pub fn start(&mut self) -> Result<(), ProtocolError> {
