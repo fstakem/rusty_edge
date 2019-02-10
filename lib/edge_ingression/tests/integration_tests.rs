@@ -2,18 +2,16 @@ extern crate edge_ingression;
 
 use edge_ingression::mqtt::client::Protocol;
 use edge_ingression::mqtt::client::ServiceInfo;
-use edge_ingression::mqtt::client::Client;
 use edge_ingression::mqtt::client::Msg;
 use edge_ingression::mqtt::client::MsgType;
 use edge_ingression::mqtt::client::SensorData;
-use edge_ingression::mqtt::client::ErrorKind;
-use edge_ingression::mqtt::client::ProtocolError;
 use edge_ingression::mqtt::client::Stream;
 use edge_ingression::mqtt::client::StoreType;
+use edge_ingression::mqtt::client::Router;
 
 
 #[test]
-fn test_mqtt_client() {
+fn test_mqtt_service() {
     let protocol = Protocol {
         name: String::from("mqtt"),
         port: 1883,
@@ -36,9 +34,12 @@ fn test_mqtt_client() {
         store_type: StoreType::InProcessMemory
     };
 
-    let mut client = Client::new(String::from("test_client"), service_info).unwrap();
-    client.add_stream(&simple_stream.sensor_id, &simple_stream);
-    let result = client.start();
+    let mut router = Router::new();
+    let service_name = service_info.name.clone();
+    router.add_service(service_info);
+    router.add_route(service_name.as_str(), &simple_stream);
+    router.start();
+
     let topic = "test/";
 
     let sensor_data = SensorData {
@@ -55,6 +56,6 @@ fn test_mqtt_client() {
         data: data_value  
     };
 
-    client.send_msg(Some(topic), &msg);
+    router.send_msg(service_name.as_str(), topic, &msg);
     loop {}
 }

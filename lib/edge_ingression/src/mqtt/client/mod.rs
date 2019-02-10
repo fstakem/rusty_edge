@@ -29,15 +29,13 @@ pub struct ServiceInfo {
     pub protocol: Protocol
 }
 
-
-pub struct Route<'a, 'b>  {
-    pub name: String,
-    pub endpoint: &'b Client<'b>,
-    pub stream: &'a Stream
+pub struct Route {
+    pub service_name: String,
+    pub stream_name: String
 }
 
-pub struct Router {
-
+pub struct Router<'a> {
+    services: HashMap<String, Service<'a>>
 }
 
 #[derive(Clone)]
@@ -48,19 +46,20 @@ pub struct Protocol {
     pub sub_topics: Vec<String>
 }
 
-struct InnerClient {
+struct Client {
     paho: paho_mqtt::Client,
     connected: bool
 }
 
-pub struct Client<'a> {
-    name: String,
+#[derive(Clone)]
+pub struct Service<'a> {
+    pub name: String,
     service_info: ServiceInfo,
     streams: HashMap<String, &'a Stream>,
-    inner: Arc<Mutex<InnerClient>>
+    inner: Arc<Mutex<Client>>
 }
 
-unsafe impl Send for InnerClient {}
+unsafe impl Send for Client {}
 
 #[derive(Debug)]
 pub struct ProtocolError {
@@ -98,30 +97,135 @@ pub struct SensorData {
 }
 
 
-impl Router {
-    pub fn new(&self) {
+impl<'a> Router<'a> {
+    pub fn new() -> Router<'a> {
+        let router = Router {
+            services: HashMap::new()
+        };
 
+        return router
     }
 
-    pub fn create_endpoint(&self) {
+    pub fn get_route_names(&self) -> Vec<String> {
+        let mut route_names = Vec::<String>::new();
 
+        for (_, service) in self.services.iter() {
+            let stream_names = service.get_stream_names();
+
+            for n in stream_names.iter() {
+                let mut route_name = String::new();
+                route_name.push_str(service.name.as_str());
+                route_name.push_str("_");
+                route_name.push_str(n);
+                route_names.push(route_name);
+            }
+        }
+
+        return route_names
     }
 
-    pub fn remove_endpoint(&self) {
-
+    pub fn add_route(&mut self, service_name: &str, stream: & 'a Stream)  {
+        match self.services.get_mut(service_name) {
+            Some(service) => {
+                println!("Adding stream: {:?} to service: {:?}", stream.name, service_name);
+                service.add_stream(stream);
+            },
+            _ => {
+                println!("Service not found: {:?}", service_name)
+            },
+        }
     }
 
-    pub fn create_route(&self) {
-
+    pub fn remove_route(&mut self, service_name: &str, stream_name: &str) {
+        match self.services.get_mut(service_name) {
+            Some(service) => {
+                println!("Removing stream: {:?} from service: {:?}", stream_name, service_name);
+                service.remove_stream(stream_name);
+            },
+            _ => {
+                println!("Service not found: {:?}", service_name)
+            },
+        }
     }
 
-    pub fn remove_route(&self) {
 
+    pub fn num_routes(&self) -> usize {
+        let mut total = 0;
+
+        for (_, service) in self.services.iter() {
+            total += service.num_streams();
+        }
+
+        return total
+    }
+
+    pub fn get_service_names(&self) -> Vec<String> {
+        let mut service_names = Vec::<String>::new();
+
+        for (name, _) in self.services.iter() {
+            service_names.push(name.to_string());
+        }
+
+        return service_names
+    }
+
+    pub fn add_service(&mut self, service_info: ServiceInfo) {
+        match self.services.get(&service_info.name) {
+            Some(_) => {
+                println!("Service already exists: {:?}", service_info.name);
+            },
+            _ => {
+                println!("Creating service: {:?}", service_info.name);
+                let key = service_info.name.clone();
+
+                match Service::new(service_info.name.clone(), service_info) {
+                    Some(service) => {
+                        println!("Service created");
+                        self.services.insert(key, service);
+                    },
+                    None => {
+                        println!("Error creating service")
+                    }
+                }
+            },
+        }
+    }
+
+    pub fn remove_service(&mut self, service_name: &str) {
+        match self.services.remove(service_name) {
+            Some(_) => {
+                println!("Removing service: {:?}", service_name);
+            },
+            _ => {
+                println!("Service not found: {:?}", service_name)
+            },
+        }
+    }
+
+    pub fn num_services(&self) -> usize {
+        return self.services.len()
+    }
+
+    pub fn start(&mut self) {
+        for (_, service) in self.services.iter_mut() {
+            service.start();
+        }
+    }
+
+    pub fn send_msg(&self, service_name: &str, topic: &str, msg: &Msg) {
+        match self.services.get(service_name) {
+            Some(service) => {
+                service.send_msg(Some(topic), msg);
+            },
+            _ => {
+                println!("Service does not exists: {:?}", service_name);
+            }
+        }
     }
 }
 
 
-impl InnerClient {
+impl Client {
     fn connect(&mut self) -> Result<(), ProtocolError> {
         if !self.connected {
             let lwt = paho_mqtt::Message::new("test", "Sync subscriber lost connection", 1);
@@ -327,9 +431,9 @@ impl InnerClient {
 }
 
 
-impl<'a> Client<'a>{
-    pub fn new(name: String, service_info: ServiceInfo) -> Option<Client<'a>> {
-        println!("Creating new mqtt client...");
+impl<'a> Service<'a>{
+    pub fn new(name: String, service_info: ServiceInfo) -> Option<Service<'a>> {
+        println!("Creating new mqtt service...");
 
         let conn_str = ["tcp://", &service_info.host, ":", 
                     &service_info.protocol.port.to_string()].concat();
@@ -349,18 +453,18 @@ impl<'a> Client<'a>{
            },
         };
 
-        let mqtt_client = Client {
+        let mqtt_service = Service {
             name:  name,
             service_info: service_info,
             streams: HashMap::new(),
-            inner: Arc::new( Mutex::new( InnerClient {
+            inner: Arc::new( Mutex::new( Client {
                 paho: paho,
                 connected: false
                 
             }))
         };
 
-        return Some(mqtt_client);
+        return Some(mqtt_service);
     }
 
     pub fn get_name(&self) -> &String {
@@ -368,7 +472,7 @@ impl<'a> Client<'a>{
     }
 
     pub fn start(&mut self) -> Result<(), ProtocolError> {
-        println!("Mqtt client starting...");
+        println!("Starting mqtt service...");
 
         match self.inner.lock() {
             Ok(mut client) => {
@@ -407,8 +511,7 @@ impl<'a> Client<'a>{
     }
 
     pub fn stop(&self) -> Result<(), ProtocolError> {
-        println!("Mqtt client stopping...");
-
+        println!("Stopping mqtt service...");
 
         match self.inner.lock() {
             Ok(client) => {
@@ -427,7 +530,7 @@ impl<'a> Client<'a>{
     }
 
     pub fn restart(&mut self) -> Result<(), ProtocolError> {
-        println!("Restarting client...");
+        println!("Restarting mqtt service...");
         match self.stop() {
             Ok(_) => {
                 self.start()
@@ -475,35 +578,37 @@ impl<'a> Client<'a>{
         }
     }
 
-    pub fn add_stream(&mut self, key: &str, stream: &'a Stream) -> Result<(), ProtocolError> {
-        self.streams.insert(key.to_string(), stream);
-        println!("Adding stream: {:?}", key);
-
-        match self.restart() {
-            Ok(_) => Result::Ok(()),
-            Err(e) => Err(e)
-        }
+    pub fn add_stream(&mut self, stream: &'a Stream) -> Result<(), ProtocolError> {
+        self.streams.insert(stream.name.to_string(), stream);
+        println!("Adding stream: {:?} to service: {:?}", stream.name, self.name);
+        return Ok(())
     }
 
     pub fn remove_stream(&mut self, key: &str) -> Result<(), ProtocolError> {
         self.streams.remove(key);
-        println!("Removing stream: {:?}", key);
-        
-        match self.restart() {
-            Ok(_) => Result::Ok(()),
-            Err(e) => Err(e)
-        }
+        println!("Removing stream: {:?} from service: {:?}", key, self.name);
+        return Ok(())
     }
 
     pub fn remove_all_stream(&mut self) -> Result<(), ProtocolError> {
         for (k, _) in self.streams.drain().take(1) {
-            println!("Removing stream: {:?}", k);
+            println!("Removing stream: {:?} from service: {:?}", k, self.name);
+        }
+        return Ok(())
+    }
+
+    pub fn get_stream_names(&self) -> Vec<&str> {
+        let mut names = Vec::new();
+
+        for k in self.streams.keys() {
+            names.push(k.as_str());
         }
 
-        match self.restart() {
-            Ok(_) => Result::Ok(()),
-            Err(e) => Err(e)
-        }
+        return names
+    }
+
+    pub fn num_streams(&self) -> usize {
+        self.streams.len()
     }
 }
 
@@ -530,7 +635,7 @@ mod tests {
             protocol: protocol
         };
 
-        let client = Client::new(String::from("test_client"), service_info).unwrap();
-        assert_eq!(client.name, String::from("test_client"));
+        let service = Service::new(String::from("test_service"), service_info).unwrap();
+        assert_eq!(service.name, String::from("test_service"));
     }
 }
