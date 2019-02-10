@@ -29,6 +29,7 @@ pub struct ServiceInfo {
     pub protocol: Protocol
 }
 
+#[derive(Debug)]
 pub struct Route {
     pub service_name: String,
     pub stream_name: String
@@ -124,30 +125,57 @@ impl<'a> Router<'a> {
         return route_names
     }
 
-    pub fn add_route(&mut self, service_name: &str, stream: & 'a Stream)  {
+    pub fn add_route(&mut self, service_name: &str, stream: & 'a Stream) -> Option<Route> {
         match self.services.get_mut(service_name) {
             Some(service) => {
                 println!("Adding stream: {:?} to service: {:?}", stream.name, service_name);
-                service.add_stream(stream);
+                
+                match service.add_stream(stream) {
+                    Ok(_) => {
+                        let route = Route {
+                            service_name: service_name.to_string(),
+                            stream_name: stream.name.to_string()
+                        };
+
+                        Some(route)
+                    },
+                    Err(_) => {
+                        None
+                    }
+                }
             },
             _ => {
-                println!("Service not found: {:?}", service_name)
+                println!("Service not found: {:?}", service_name);
+                None
             },
         }
     }
 
-    pub fn remove_route(&mut self, service_name: &str, stream_name: &str) {
+    pub fn remove_route(&mut self, service_name: &str, stream_name: &str) -> Option<Route> {
         match self.services.get_mut(service_name) {
             Some(service) => {
                 println!("Removing stream: {:?} from service: {:?}", stream_name, service_name);
-                service.remove_stream(stream_name);
+
+                match service.remove_stream(stream_name) {
+                    Ok(_) => {
+                        let route = Route {
+                            service_name: service_name.to_string(),
+                            stream_name:stream_name.to_string()
+                        };
+
+                        Some(route)
+                    },
+                    Err(_) => {
+                        None
+                    }
+                }
             },
             _ => {
-                println!("Service not found: {:?}", service_name)
+                println!("Service not found: {:?}", service_name);
+                None
             },
         }
     }
-
 
     pub fn num_routes(&self) -> usize {
         let mut total = 0;
@@ -375,7 +403,7 @@ impl Client {
                 println!("{:?}", msg_str);
                 msg_str
             },
-            Err(e) => {
+            Err(_) => {
                 let error = ErrorKind::Mqtt;
                 let result = Result::Err(ProtocolError{
                     kind: error,
@@ -392,7 +420,7 @@ impl Client {
                 .qos(1)
                 .finalize();
 
-            if let Err(e) = self.paho.publish(mqtt_msg) {
+            if let Err(_) = self.paho.publish(mqtt_msg) {
                 let error = ErrorKind::Mqtt;
                 let result = Result::Err(ProtocolError{
                     kind: error,
@@ -517,7 +545,7 @@ impl<'a> Service<'a>{
             Ok(client) => {
                 return client.disconnect();
             }
-            Err(e) => {
+            Err(_) => {
                 println!("Error requesting lock");
                 let error = ErrorKind::Thread;
                 let result = Result::Err(ProtocolError{
@@ -549,7 +577,7 @@ impl<'a> Service<'a>{
 
                 return client.send_msg(&self.service_info.protocol.pub_topic.to_string(), msg);
             }
-            Err(e) => {
+            Err(_) => {
                 println!("Error requesting lock");
                 let error = ErrorKind::Thread;
                 let result = Result::Err(ProtocolError{
@@ -566,7 +594,7 @@ impl<'a> Service<'a>{
             Ok(client) => {
                 return Result::Ok(client.connected);
             }
-            Err(e) => {
+            Err(_) => {
                 println!("Error requesting lock");
                 let error = ErrorKind::Thread;
                 let result = Result::Err(ProtocolError{

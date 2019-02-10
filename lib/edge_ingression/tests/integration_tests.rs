@@ -37,7 +37,8 @@ fn test_mqtt_service() {
     let mut router = Router::new();
     let service_name = service_info.name.clone();
     router.add_service(service_info);
-    router.add_route(service_name.as_str(), &simple_stream);
+    let route = router.add_route(service_name.as_str(), &simple_stream);
+    println!("Route: {:?}", route);
     router.start();
 
     let topic = "test/";
