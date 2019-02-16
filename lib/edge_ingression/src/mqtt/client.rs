@@ -7,10 +7,11 @@ use super::super::Protocol;
 use super::super::Msg;
 use super::super::SensorData;
 use super::super::MsgType;
+use super::super::ServiceInfo;
 
 
 pub struct Client {
-    pub paho: paho_mqtt::Client,
+    paho: paho_mqtt::Client,
     pub connected: bool
 }
 
@@ -19,6 +20,35 @@ unsafe impl Send for Client {}
 
 
 impl Client {
+    pub fn new(service_info: &ServiceInfo) -> Option<Client> {
+        println!("Creating new mqtt client...");
+
+        let conn_str = ["tcp://", &service_info.host, ":", 
+                    &service_info.protocol.port.to_string()].concat();
+
+        println!("Connection string: {}", conn_str);
+
+        let create_opts = paho_mqtt::CreateOptionsBuilder::new()
+            .server_uri(conn_str)
+            .client_id("rust_sync_consumer")
+            .finalize();
+
+        let paho = match paho_mqtt::Client::new(create_opts) {
+            Ok(paho) => paho,
+            Err(e) => {
+                println!("Error creating the client: {:?}", e);
+                return None
+           },
+        };
+
+        let client = Client {
+            paho: paho,
+            connected: false
+        };
+
+        Some(client)
+    }
+
     pub fn connect(&mut self) -> Result<(), ProtocolError> {
         if !self.connected {
             let lwt = paho_mqtt::Message::new("test", "Sync subscriber lost connection", 1);

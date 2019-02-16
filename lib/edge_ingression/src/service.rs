@@ -20,35 +20,20 @@ pub struct Service<'a> {
 
 impl<'a> Service<'a>{
     pub fn new(name: String, service_info: ServiceInfo) -> Option<Service<'a>> {
-        println!("Creating new mqtt service...");
+        println!("Creating new service...");
 
-        let conn_str = ["tcp://", &service_info.host, ":", 
-                    &service_info.protocol.port.to_string()].concat();
-
-        println!("Connection string: {}", conn_str);
-
-        let create_opts = paho_mqtt::CreateOptionsBuilder::new()
-            .server_uri(conn_str)
-            .client_id("rust_sync_consumer")
-            .finalize();
-
-        let paho = match paho_mqtt::Client::new(create_opts) {
-            Ok(paho) => paho,
-            Err(e) => {
-                println!("Error creating the client: {:?}", e);
+        let client = match Client::new(&service_info) {
+            Some(client) => client,
+            None => {
                 return None
-           },
+            },
         };
 
         let mqtt_service = Service {
             name:  name,
             service_info: service_info,
             streams: HashMap::new(),
-            inner: Arc::new( Mutex::new( Client {
-                paho: paho,
-                connected: false
-                
-            }))
+            inner: Arc::new( Mutex::new(client))
         };
 
         return Some(mqtt_service);
@@ -65,7 +50,7 @@ impl<'a> Service<'a>{
             Ok(mut client) => {
                 client.connect();
             }
-            Err(e) => {
+            Err(_) => {
                 println!("Error requesting lock");
                 let error = ErrorKind::Thread;
                 let result = Result::Err(ProtocolError{
@@ -82,7 +67,7 @@ impl<'a> Service<'a>{
         let child = thread::spawn(move || {
             match local_self.lock() {
                Ok(mut client) => client.start_subscriber(protocol),
-               Err(e) => {
+               Err(_) => {
                     println!("Error requesting lock");
                     let error = ErrorKind::Thread;
                     let result = Result::Err(ProtocolError{
