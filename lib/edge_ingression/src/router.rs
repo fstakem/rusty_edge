@@ -41,7 +41,7 @@ impl<'a> Router<'a> {
     pub fn add_route(&mut self, service_name: &str, stream: & 'a Stream) -> Option<Route> {
         match self.services.get_mut(service_name) {
             Some(service) => {
-                println!("Adding stream: {:?} to service: {:?}", stream.name, service_name);
+                println!("Adding route: {:?} to service: {:?}", stream.name, service_name);
                 
                 match service.add_stream(stream) {
                     Ok(_) => {
@@ -67,7 +67,7 @@ impl<'a> Router<'a> {
     pub fn remove_route(&mut self, service_name: &str, stream_name: &str) -> Option<Route> {
         match self.services.get_mut(service_name) {
             Some(service) => {
-                println!("Removing stream: {:?} from service: {:?}", stream_name, service_name);
+                println!("Removing route: {:?} from service: {:?}", stream_name, service_name);
 
                 match service.remove_stream(stream_name) {
                     Ok(_) => {
