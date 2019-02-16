@@ -1,12 +1,13 @@
 extern crate edge_ingression;
 
+use chrono::prelude::*;
+
 use edge_ingression::Protocol;
 use edge_ingression::ServiceInfo;
 use edge_ingression::Msg;
 use edge_ingression::Stream;
 use edge_ingression::StoreType;
 use edge_ingression::Router;
-
 use edge_ingression::MsgData;
 
 
@@ -44,9 +45,10 @@ fn test_mqtt_service() {
 
     let topic = "test/";
     let sensor_data = MsgData::SimpleData{ values: vec![10.0, 12.0] };
+    let utc: DateTime<Utc> = Utc::now();
 
     let msg = Msg {
-        timestamp: "".to_string(),
+        timestamp: utc,
         version: "0.1.0".to_string(),
         data: sensor_data  
     };

@@ -52,7 +52,8 @@ pub struct Protocol {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Msg {
-    pub timestamp: String,
+    //pub timestamp: String,
+    pub timestamp: DateTime<Utc>,
     pub version: String,
     pub data: MsgData
 }
