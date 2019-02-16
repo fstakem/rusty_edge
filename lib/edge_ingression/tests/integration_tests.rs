@@ -1,13 +1,13 @@
 extern crate edge_ingression;
 
-use edge_ingression::mqtt::client::Protocol;
-use edge_ingression::mqtt::client::ServiceInfo;
-use edge_ingression::mqtt::client::Msg;
-use edge_ingression::mqtt::client::MsgType;
-use edge_ingression::mqtt::client::SensorData;
-use edge_ingression::mqtt::client::Stream;
-use edge_ingression::mqtt::client::StoreType;
-use edge_ingression::mqtt::client::Router;
+use edge_ingression::Protocol;
+use edge_ingression::ServiceInfo;
+use edge_ingression::Msg;
+use edge_ingression::MsgType;
+use edge_ingression::SensorData;
+use edge_ingression::Stream;
+use edge_ingression::StoreType;
+use edge_ingression::Router;
 
 
 #[test]
