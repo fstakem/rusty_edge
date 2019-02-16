@@ -1,17 +1,17 @@
 use std::thread;
 use std::time::Duration;
 
-use super::super::ProtocolError;
-use super::super::ErrorKind;
-use super::super::Protocol;
-use super::super::Msg;
-use super::super::SensorData;
-use super::super::MsgType;
-use super::super::ServiceInfo;
+use super::super::super::ProtocolError;
+use super::super::super::ErrorKind;
+use super::super::super::Protocol;
+use super::super::super::Msg;
+use super::super::super::ServiceInfo;
+use super::super::super::deserializer::json::Json;
 
 
 pub struct Client {
     paho: paho_mqtt::Client,
+    deserializer: Json,
     pub connected: bool
 }
 
@@ -41,8 +41,15 @@ impl Client {
            },
         };
 
+        let deserializer = match service_info.deserializer.as_ref() {
+            "json" => { Json{} }
+            _ => return None
+        };
+
+
         let client = Client {
             paho: paho,
+            deserializer: deserializer,
             connected: false
         };
 
@@ -133,45 +140,9 @@ impl Client {
         return Ok(());
     }
 
-    fn handle_msg(&self, msg: paho_mqtt::Message) -> () {
-        // TODO
-        // Handle in stream
-        println!("{}", msg);
-
-        let outer_msg = match serde_json::from_str::<Msg>(&msg.payload_str()) {
-            Ok(outer_msg) => {
-                println!("Message received =>");
-                println!("\ttimestamp: {:?}", outer_msg.timestamp);
-                println!("\tversion: {:?}", outer_msg.version);
-                println!("\tmessage type: {:?}", outer_msg.msg_type);
-                println!("\tdata: {:?}", outer_msg.data);
-                outer_msg
-            },
-            Err(e) => {
-                println!("Error parsing message: {:?}", e);
-                return ();
-            }
-        };
-
-        match outer_msg.msg_type {
-            MsgType::SensorData => {
-                match serde_json::from_value::<SensorData>(outer_msg.data) {
-                    Ok(data) => {
-                        println!("Sensor data =>");
-                        println!("\tsensor id: {:?}", data.sensor_id);
-                        println!("\tdata: {:?}", data.data)
-                    },
-                    Err(e) => {
-                        println!("Error parsing sensor data: {:?}", e);
-                        return ();
-                    }
-                }
-            },
-            _ => {
-                println!("Msg type not handled!")
-            }
-        }
-
+    fn handle_msg(&self, paho_msg: paho_mqtt::Message) -> Option<Msg> {
+        println!("Received:\n{}", paho_msg);
+        return self.deserializer.parse_msg(&paho_msg.payload_str());
     }
 
     fn try_reconnect(&self) -> bool {

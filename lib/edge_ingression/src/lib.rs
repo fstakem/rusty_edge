@@ -3,8 +3,12 @@ extern crate serde_derive;
 extern crate paho_mqtt;
 extern crate serde;
 extern crate serde_json;
+extern crate chrono;
 
-pub mod mqtt;
+use chrono::prelude::*;
+
+pub mod protocol;
+pub mod deserializer;
 pub mod router;
 pub mod service;
 
@@ -14,6 +18,10 @@ pub use self::service::Service;
 
 // Data types
 // -------------------------------------------------------------------------------------------------
+pub struct Event {
+    pub timestamp: DateTime<Utc>
+}
+
 pub enum StoreType {
     InProcessMemory,
     Redis
@@ -24,7 +32,8 @@ pub struct ServiceInfo {
     pub name: String,
     pub debug: bool,
     pub host: String,
-    pub protocol: Protocol
+    pub protocol: Protocol,
+    pub deserializer: String
 }
 
 #[derive(Debug)]
@@ -42,23 +51,19 @@ pub struct Protocol {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum MsgType {
-    SensorData,
-    Config,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct Msg {
     pub timestamp: String,
     pub version: String,
-    pub msg_type: MsgType,
-    pub data: serde_json::Value
+    pub data: MsgData
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SensorData {
-    pub sensor_id: String,
-    pub data: Vec<f64>
+#[serde(tag = "msg_type")]
+pub enum MsgData {
+    #[serde(rename = "sensor_data")]
+    SimpleData {values: Vec<f64> },
+    #[serde(rename = "other")]
+    Other { value: String },
 }
 
 #[derive(Debug)]

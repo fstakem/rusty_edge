@@ -3,11 +3,11 @@ extern crate edge_ingression;
 use edge_ingression::Protocol;
 use edge_ingression::ServiceInfo;
 use edge_ingression::Msg;
-use edge_ingression::MsgType;
-use edge_ingression::SensorData;
 use edge_ingression::Stream;
 use edge_ingression::StoreType;
 use edge_ingression::Router;
+
+use edge_ingression::MsgData;
 
 
 #[test]
@@ -25,7 +25,8 @@ fn test_mqtt_service() {
         name: String::from("Edge Ingestion"),
         debug: true,
         host: String::from("localhost"),
-        protocol: protocol
+        protocol: protocol,
+        deserializer: String::from("json")
     };
 
     let simple_stream = Stream {
@@ -42,19 +43,12 @@ fn test_mqtt_service() {
     router.start();
 
     let topic = "test/";
-
-    let sensor_data = SensorData {
-        sensor_id: String::from("Remote sensor a"),
-        data: vec![10.0, 12.0]
-    };
-
-    let data_value = serde_json::json!(&sensor_data);
+    let sensor_data = MsgData::SimpleData{ values: vec![10.0, 12.0] };
 
     let msg = Msg {
         timestamp: "".to_string(),
         version: "0.1.0".to_string(),
-        msg_type: MsgType::SensorData,
-        data: data_value  
+        data: sensor_data  
     };
 
     router.send_msg(service_name.as_str(), topic, &msg);

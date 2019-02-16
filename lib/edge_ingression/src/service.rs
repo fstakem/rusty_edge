@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
-use super::mqtt::Client;
+use super::protocol::mqtt::Client;
 use super::ProtocolError;
 use super::ErrorKind;
 use super::Msg;
