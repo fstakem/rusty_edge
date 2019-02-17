@@ -90,8 +90,14 @@ impl<'a> Service<'a>{
             match rx_clone.lock() {
                 Ok(rx) => {
                     println!("Starting service thread...");
-                    let msg = rx.recv().unwrap();
-                    println!("Service received: {:?}", msg);
+                    let mut iter = rx.iter();
+
+                    loop {
+                        println!("waiting.......");
+                        let msg = iter.next();
+                        println!("Service received: {:?}", msg);
+                    }
+
                     Ok(())
                 }
                 Err(_) => {
@@ -142,7 +148,6 @@ impl<'a> Service<'a>{
     pub fn send_msg(&self, topic: Option<&str>, msg: &Msg) -> Result<(), ProtocolError> {
         match self.client.lock() {
             Ok(client) => {
-
                 if let Some(new_topic) = topic {
                     return client.send_msg(new_topic, msg);
                 }

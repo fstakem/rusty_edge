@@ -60,8 +60,12 @@ pub struct Msg {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "msg_type")]
 pub enum MsgData {
-    #[serde(rename = "sensor_data")]
+    #[serde(rename = "simple_data")]
     SimpleData {values: Vec<f64> },
+    #[serde(rename = "descriptive_data")]
+    DescriptiveData {ids: Vec<String>, values: Vec<f64> },
+    #[serde(rename = "window_data")]
+    WindowData {timestamps: Vec<DateTime<Utc>>, values: Vec<f64> },
     #[serde(rename = "other")]
     Other { value: String },
 }

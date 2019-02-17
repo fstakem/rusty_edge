@@ -193,7 +193,7 @@ impl Client {
             let mqtt_msg = paho_mqtt::MessageBuilder::new()
                 .topic(topic)
                 .payload(msg_str.clone())
-                .qos(1)
+                .qos(0)
                 .finalize();
 
             if let Err(_) = self.paho.publish(mqtt_msg) {
@@ -216,6 +216,7 @@ impl Client {
             kind: error,
             msg: "Error not connected".to_string()
         });
+
         return result;
     }
 

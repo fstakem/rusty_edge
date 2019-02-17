@@ -11,6 +11,48 @@ use edge_ingression::Router;
 use edge_ingression::MsgData;
 
 
+fn send_simple_data(router: &Router, service_name: &str, topic: &str) {
+    let sensor_data = MsgData::SimpleData{ values: vec![10.0, 12.0] };
+    let utc: DateTime<Utc> = Utc::now();
+
+    let msg = Msg {
+        timestamp: utc,
+        version: "0.1.0".to_string(),
+        data: sensor_data  
+    };
+
+    router.send_msg(service_name, topic, &msg);
+}
+
+fn descriptive_data(router: &Router, service_name: &str, topic: &str) {
+    let sensor_data = MsgData::DescriptiveData{ ids: vec![String::from("a"), String::from("b")], 
+                                                values: vec![10.0, 12.0] };
+    let utc: DateTime<Utc> = Utc::now();
+
+    let msg = Msg {
+        timestamp: utc,
+        version: "0.1.0".to_string(),
+        data: sensor_data  
+    };
+
+    router.send_msg(service_name, topic, &msg);
+}
+
+fn window_data(router: &Router, service_name: &str, topic: &str) {
+    let sensor_data = MsgData::WindowData{ timestamps: vec![Utc::now(), Utc::now()], 
+                                           values: vec![10.0, 12.0] };
+    let utc: DateTime<Utc> = Utc::now();
+
+    let msg = Msg {
+        timestamp: utc,
+        version: "0.1.0".to_string(),
+        data: sensor_data  
+    };
+
+    router.send_msg(service_name, topic, &msg);
+}
+
+
 #[test]
 fn test_mqtt_service() {
     let protocol = Protocol {
@@ -44,15 +86,11 @@ fn test_mqtt_service() {
     router.start();
 
     let topic = "test/";
-    let sensor_data = MsgData::SimpleData{ values: vec![10.0, 12.0] };
-    let utc: DateTime<Utc> = Utc::now();
-
-    let msg = Msg {
-        timestamp: utc,
-        version: "0.1.0".to_string(),
-        data: sensor_data  
-    };
-
-    router.send_msg(service_name.as_str(), topic, &msg);
+    println!("1");
+    send_simple_data(&router, service_name.as_str(), topic);
+    println!("2");
+    descriptive_data(&router, service_name.as_str(), topic);
+    println!("3");
+    window_data(&router, service_name.as_str(), topic);
     loop {}
 }
