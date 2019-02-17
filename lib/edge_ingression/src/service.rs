@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+use std::sync::mpsc::{Receiver, channel};
 
 use super::protocol::mqtt::Client;
 use super::ProtocolError;
@@ -15,14 +16,17 @@ pub struct Service<'a> {
     pub name: String,
     service_info: ServiceInfo,
     streams: HashMap<String, &'a Stream>,
-    inner: Arc<Mutex<Client>>
+    client: Arc<Mutex<Client>>,
+    rx: Arc<Mutex<Receiver<Msg>>>,
 }
 
 impl<'a> Service<'a>{
     pub fn new(name: String, service_info: ServiceInfo) -> Option<Service<'a>> {
         println!("Creating new service...");
 
-        let client = match Client::new(&service_info) {
+        let (tx, rx) = channel();
+
+        let client = match Client::new(&service_info, tx) {
             Some(client) => client,
             None => {
                 return None
@@ -33,7 +37,8 @@ impl<'a> Service<'a>{
             name:  name,
             service_info: service_info,
             streams: HashMap::new(),
-            inner: Arc::new( Mutex::new(client))
+            client: Arc::new(Mutex::new(client)),
+            rx: Arc::new(Mutex::new(rx))
         };
 
         return Some(mqtt_service);
@@ -46,7 +51,7 @@ impl<'a> Service<'a>{
     pub fn start(&mut self) -> Result<(), ProtocolError> {
         println!("Starting mqtt service...");
 
-        match self.inner.lock() {
+        match self.client.lock() {
             Ok(mut client) => {
                 client.connect();
             }
@@ -61,22 +66,45 @@ impl<'a> Service<'a>{
             }
         }
 
-        let local_self = self.inner.clone();
+        let client_clone = self.client.clone();
         let protocol = self.service_info.protocol.clone();
 
-        let child = thread::spawn(move || {
-            match local_self.lock() {
+        let paho_thread = thread::spawn(move || {
+            match client_clone.lock() {
                Ok(mut client) => client.start_subscriber(protocol),
                Err(_) => {
-                    println!("Error requesting lock");
+                    println!("Error requesting client lock");
                     let error = ErrorKind::Thread;
                     let result = Result::Err(ProtocolError{
                         kind: error,
-                        msg: "Error connecting to server".to_string()
+                        msg: "Error starting client".to_string()
                     });
                     return result;
                }
             }
+        });
+
+        let rx_clone = self.rx.clone();
+
+        let service_thread = thread::spawn(move || {
+            match rx_clone.lock() {
+                Ok(rx) => {
+                    println!("Starting service thread...");
+                    let msg = rx.recv().unwrap();
+                    println!("Service received: {:?}", msg);
+                    Ok(())
+                }
+                Err(_) => {
+                    println!("Error requesting receiver lock");
+                    let error = ErrorKind::Thread;
+                    let result = Result::Err(ProtocolError{
+                        kind: error,
+                        msg: "Error starting client".to_string()
+                    });
+                    return result;
+                }
+            }
+
         });
 
         return Ok(());
@@ -85,7 +113,7 @@ impl<'a> Service<'a>{
     pub fn stop(&self) -> Result<(), ProtocolError> {
         println!("Stopping mqtt service...");
 
-        match self.inner.lock() {
+        match self.client.lock() {
             Ok(client) => {
                 return client.disconnect();
             }
@@ -112,7 +140,7 @@ impl<'a> Service<'a>{
     }
 
     pub fn send_msg(&self, topic: Option<&str>, msg: &Msg) -> Result<(), ProtocolError> {
-        match self.inner.lock() {
+        match self.client.lock() {
             Ok(client) => {
 
                 if let Some(new_topic) = topic {
@@ -133,10 +161,14 @@ impl<'a> Service<'a>{
         }
     }
 
+    fn receive_msgs(&self) {
+
+    }
+
     pub fn is_connected(&self) -> Result<(bool), ProtocolError> {
-        match self.inner.lock() {
+        match self.client.lock() {
             Ok(client) => {
-                return Result::Ok(client.connected);
+                return Result::Ok(client.is_connected());
             }
             Err(_) => {
                 println!("Error requesting lock");

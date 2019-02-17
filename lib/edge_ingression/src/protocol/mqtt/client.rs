@@ -1,5 +1,6 @@
 use std::thread;
 use std::time::Duration;
+use std::sync::mpsc::Sender;
 
 use super::super::super::ProtocolError;
 use super::super::super::ErrorKind;
@@ -12,7 +13,8 @@ use super::super::super::deserializer::json::Json;
 pub struct Client {
     paho: paho_mqtt::Client,
     deserializer: Json,
-    pub connected: bool
+    connected: bool,
+    tx: Sender<Msg>
 }
 
 
@@ -20,7 +22,7 @@ unsafe impl Send for Client {}
 
 
 impl Client {
-    pub fn new(service_info: &ServiceInfo) -> Option<Client> {
+    pub fn new(service_info: &ServiceInfo, transmitter: Sender<Msg>) -> Option<Client> {
         println!("Creating new mqtt client...");
 
         let conn_str = ["tcp://", &service_info.host, ":", 
@@ -46,11 +48,11 @@ impl Client {
             _ => return None
         };
 
-
         let client = Client {
             paho: paho,
             deserializer: deserializer,
-            connected: false
+            connected: false,
+            tx: transmitter
         };
 
         Some(client)
@@ -140,9 +142,17 @@ impl Client {
         return Ok(());
     }
 
-    fn handle_msg(&self, paho_msg: paho_mqtt::Message) -> Option<Msg> {
-        println!("Received:\n{}", paho_msg);
-        return self.deserializer.parse_msg(&paho_msg.payload_str());
+    fn handle_msg(&self, paho_msg: paho_mqtt::Message) -> () {
+        println!("Client received: {}", paho_msg);
+
+        match self.deserializer.parse_msg(&paho_msg.payload_str()) {
+            Some(msg) => {
+                self.tx.send(msg);
+            },
+            None => {
+                
+            }
+        }
     }
 
     fn try_reconnect(&self) -> bool {
@@ -221,6 +231,10 @@ impl Client {
             msg: "Error not connected".to_string()
         });
         return result;
+    }
+
+    pub fn is_connected(&self) -> bool {
+        self.connected
     }
 }
 
