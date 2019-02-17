@@ -146,9 +146,11 @@ impl<'a> Service<'a>{
     }
 
     pub fn send_msg(&self, topic: Option<&str>, msg: &Msg) -> Result<(), ProtocolError> {
+        println!("++++++++++++++++++++++-> Service trying to get lock");
         match self.client.lock() {
             Ok(client) => {
                 if let Some(new_topic) = topic {
+                    println!("++++++++++++++++++++++-> Service sending msg");
                     return client.send_msg(new_topic, msg);
                 }
 

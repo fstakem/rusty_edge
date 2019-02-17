@@ -24,7 +24,7 @@ fn send_simple_data(router: &Router, service_name: &str, topic: &str) {
     router.send_msg(service_name, topic, &msg);
 }
 
-fn descriptive_data(router: &Router, service_name: &str, topic: &str) {
+fn send_descriptive_data(router: &Router, service_name: &str, topic: &str) {
     let sensor_data = MsgData::DescriptiveData{ ids: vec![String::from("a"), String::from("b")], 
                                                 values: vec![10.0, 12.0] };
     let utc: DateTime<Utc> = Utc::now();
@@ -38,7 +38,7 @@ fn descriptive_data(router: &Router, service_name: &str, topic: &str) {
     router.send_msg(service_name, topic, &msg);
 }
 
-fn window_data(router: &Router, service_name: &str, topic: &str) {
+fn send_window_data(router: &Router, service_name: &str, topic: &str) {
     let sensor_data = MsgData::WindowData{ timestamps: vec![Utc::now(), Utc::now()], 
                                            values: vec![10.0, 12.0] };
     let utc: DateTime<Utc> = Utc::now();
@@ -89,8 +89,8 @@ fn test_mqtt_service() {
     println!("1");
     send_simple_data(&router, service_name.as_str(), topic);
     println!("2");
-    descriptive_data(&router, service_name.as_str(), topic);
+    send_descriptive_data(&router, service_name.as_str(), topic);
     println!("3");
-    window_data(&router, service_name.as_str(), topic);
+    send_window_data(&router, service_name.as_str(), topic);
     loop {}
 }
