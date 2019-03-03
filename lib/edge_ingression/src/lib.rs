@@ -22,7 +22,7 @@ pub struct Event {
     pub timestamp: DateTime<Utc>
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum StoreType {
     InProcessMemory,
     Redis
@@ -84,6 +84,7 @@ pub enum ErrorKind {
     Mqtt,
 }
 
+#[derive(Debug)]
 pub struct Stream {
     pub name: String,
     pub sensor_id: String,

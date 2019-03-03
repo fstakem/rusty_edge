@@ -52,7 +52,12 @@ impl Service {
         self.client.connect();
         let protocol = self.service_info.protocol.clone();
         self.client.start_subscriber(protocol);
+        self.rx_msgs();
 
+        return Ok(());
+    }
+
+    fn rx_msgs(&self) {
         let rx_clone = self.rx.clone();
         let streams_clone = self.streams.clone();
 
@@ -66,7 +71,21 @@ impl Service {
                         let msg = iter.next();
                         println!("Service received msg: {:?}", msg);
 
-                        streams_clone.lock();
+                        match streams_clone.lock() {
+                            Ok(streams) => {
+                                match streams.get("temp_sensor_1") {
+                                    Some(stream) => {
+                                        println!(">>>>>> GOT STREAM: {:?}", stream);
+                                    },
+                                    None => {
+                                        println!("No stream found for data");
+                                    }
+                                };
+                            },
+                            Err(_) => {
+                                println!("Error locking streams");
+                            }
+                        }
                     }
 
                     Ok(())
@@ -83,8 +102,6 @@ impl Service {
             }
 
         });
-
-        return Ok(());
     }
 
     pub fn stop(&self) -> Result<(), ProtocolError> {
@@ -114,10 +131,6 @@ impl Service {
         }
     }
 
-    pub fn receive_msgs(&self) {
-        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
-    }
-
     pub fn is_connected(&self) -> bool {
         self.client.is_connected()
     }
@@ -131,8 +144,8 @@ impl Service {
                     store_type: stream_info.store_type
                 };
 
-                println!("Adding stream: {:?} to service: {:?}", stream.name, self.name);
-                streams.insert(stream.name.to_string(), stream);
+                println!("Adding stream: {:?} to service: {:?}", stream.sensor_id, self.name);
+                streams.insert(stream.sensor_id.to_string(), stream);
                 
                 return Ok(())
             },
