@@ -3,16 +3,16 @@ use std::collections::HashMap;
 use super::Service;
 use super::Msg;
 use super::Route;
-use super::Stream;
+use super::StreamInfo;
 use super::ServiceInfo;
 
-pub struct Router<'a> {
-    services: HashMap<String, Service<'a>>
+pub struct Router {
+    services: HashMap<String, Service>
 }
 
 
-impl<'a> Router<'a> {
-    pub fn new() -> Router<'a> {
+impl Router {
+    pub fn new() -> Router {
         let router = Router {
             services: HashMap::new()
         };
@@ -24,30 +24,34 @@ impl<'a> Router<'a> {
         let mut route_names = Vec::<String>::new();
 
         for (_, service) in self.services.iter() {
-            let stream_names = service.get_stream_names();
-
-            for n in stream_names.iter() {
-                let mut route_name = String::new();
-                route_name.push_str(service.name.as_str());
-                route_name.push_str("_");
-                route_name.push_str(n);
-                route_names.push(route_name);
+            match service.get_stream_names() {
+                Ok(names) => {
+                    for n in names.iter() {
+                        let mut route_name = String::new();
+                        route_name.push_str(service.name.as_str());
+                        route_name.push_str("_");
+                        route_name.push_str(n);
+                        route_names.push(route_name);
+                    }
+                }, 
+                Err(_) => {}
             }
         }
 
         return route_names
     }
 
-    pub fn add_route(&mut self, service_name: &str, stream: & 'a Stream) -> Option<Route> {
+    pub fn add_route(&mut self, service_name: &str, stream_info: StreamInfo) -> Option<Route> {
         match self.services.get_mut(service_name) {
             Some(service) => {
-                println!("Adding route: {:?} to service: {:?}", stream.name, service_name);
+                println!("Adding route: {:?} to service: {:?}", stream_info.name, service_name);
+                let stream_name = stream_info.name.clone();
                 
-                match service.add_stream(stream) {
+                match service.add_stream(stream_info) {
                     Ok(_) => {
                         let route = Route {
-                            service_name: service_name.to_string(),
-                            stream_name: stream.name.to_string()
+                            service_name: String::from(service_name),
+                            stream_name: stream_name
                         };
 
                         Some(route)
@@ -94,7 +98,14 @@ impl<'a> Router<'a> {
         let mut total = 0;
 
         for (_, service) in self.services.iter() {
-            total += service.num_streams();
+            match service.num_streams() {
+                Ok(num) => {
+                    total += num;
+                },
+                Err(_) => {
+                }
+            }
+            
         }
 
         return total

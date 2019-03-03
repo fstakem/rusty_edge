@@ -9,20 +9,20 @@ use super::ProtocolError;
 use super::ErrorKind;
 use super::Msg;
 use super::Stream;
+use super::StreamInfo;
 use super::ServiceInfo;
 
-pub struct Service<'a> {
+pub struct Service {
     pub name: String,
     service_info: ServiceInfo,
-    streams: HashMap<String, &'a Stream>,
+    streams: Arc<Mutex<HashMap<String, Stream>>>,
     client: Client,
     rx: Arc<Mutex<Receiver<Msg>>>,
 }
 
-impl<'a> Service<'a>{
-    pub fn new(name: String, service_info: ServiceInfo) -> Option<Service<'a>> {
+impl Service {
+    pub fn new(name: String, service_info: ServiceInfo) -> Option<Service> {
         println!("Creating new service...");
-
         let (tx, rx) = channel();
 
         let client = match Client::new(&service_info, tx) {
@@ -35,7 +35,7 @@ impl<'a> Service<'a>{
         let mqtt_service = Service {
             name:  name,
             service_info: service_info,
-            streams: HashMap::new(),
+            streams: Arc::new(Mutex::new(HashMap::new())),
             client: client,
             rx: Arc::new(Mutex::new(rx))
         };
@@ -54,17 +54,19 @@ impl<'a> Service<'a>{
         self.client.start_subscriber(protocol);
 
         let rx_clone = self.rx.clone();
+        let streams_clone = self.streams.clone();
 
-        let service_thread = thread::spawn(move || {
+        let _service_thread = thread::spawn(move || {
             match rx_clone.lock() {
                 Ok(rx) => {
                     println!("Starting service receiver thread...");
                     let mut iter = rx.iter();
 
                     loop {
-                        println!("Service waiting for msg.......");
                         let msg = iter.next();
                         println!("Service received msg: {:?}", msg);
+
+                        streams_clone.lock();
                     }
 
                     Ok(())
@@ -102,48 +104,123 @@ impl<'a> Service<'a>{
     }
 
     pub fn send_msg(&self, topic: Option<&str>, msg: &Msg) -> Result<(), ProtocolError> {
-        // If topic use otherwise use default
-        self.client.send_msg(&self.service_info.protocol.pub_topic.to_string(), msg)
+        match topic {
+            Some(topic) => {
+                self.client.send_msg(&topic.to_string(), msg)
+            },
+            _ => {
+                self.client.send_msg(&self.service_info.protocol.pub_topic.to_string(), msg)
+            },
+        }
     }
 
-    fn receive_msgs(&self) {
-
+    pub fn receive_msgs(&self) {
+        println!(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>");
     }
 
     pub fn is_connected(&self) -> bool {
         self.client.is_connected()
     }
 
-    pub fn add_stream(&mut self, stream: &'a Stream) -> Result<(), ProtocolError> {
-        self.streams.insert(stream.name.to_string(), stream);
-        println!("Adding stream: {:?} to service: {:?}", stream.name, self.name);
-        return Ok(())
+    pub fn add_stream(&mut self, stream_info: StreamInfo) -> Result<(), ProtocolError> {
+        match self.streams.lock() {
+            Ok(mut streams) => {
+                let stream = Stream {
+                    name: stream_info.name.to_string(),
+                    sensor_id: stream_info.sensor_id.to_string(),
+                    store_type: stream_info.store_type
+                };
+
+                println!("Adding stream: {:?} to service: {:?}", stream.name, self.name);
+                streams.insert(stream.name.to_string(), stream);
+                
+                return Ok(())
+            },
+            Err(_) => {
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: String::from("Error requesting stream lock")
+                });
+                return result;
+            }
+        }
     }
 
     pub fn remove_stream(&mut self, key: &str) -> Result<(), ProtocolError> {
-        self.streams.remove(key);
-        println!("Removing stream: {:?} from service: {:?}", key, self.name);
-        return Ok(())
+        match self.streams.lock() {
+            Ok(mut streams) => {
+                streams.remove(key);
+                println!("Removing stream: {:?} from service: {:?}", key, self.name);
+                return Ok(())
+            },
+            Err(_) => {
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: String::from("Error requesting stream lock")
+                });
+                return result;
+            }
+        }
     }
 
     pub fn remove_all_stream(&mut self) -> Result<(), ProtocolError> {
-        for (k, _) in self.streams.drain().take(1) {
-            println!("Removing stream: {:?} from service: {:?}", k, self.name);
+        match self.streams.lock() {
+            Ok(mut streams) => {
+                for (k, _) in streams.drain().take(1) {
+                    println!("Removing stream: {:?} from service: {:?}", k, self.name);
+                }
+                return Ok(())
+            },
+            Err(_) => {
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: String::from("Error requesting stream lock")
+                });
+                return result;
+            }
         }
-        return Ok(())
     }
 
-    pub fn get_stream_names(&self) -> Vec<&str> {
-        let mut names = Vec::new();
+    pub fn get_stream_names(&self) -> Result<Vec<String>, ProtocolError> {
+        match self.streams.lock() {
+            Ok(streams) => {
+                let mut names = Vec::new();
 
-        for k in self.streams.keys() {
-            names.push(k.as_str());
+                for k in streams.keys() {
+                    names.push(k.clone());
+                }
+
+                return Result::Ok(names)
+            },
+            Err(_) => {
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: String::from("Error requesting stream lock")
+                });
+                return result;
+            }
         }
-
-        return names
     }
 
-    pub fn num_streams(&self) -> usize {
-        self.streams.len()
+    pub fn num_streams(&self) -> Result<usize, ProtocolError> {
+        match self.streams.lock() {
+            Ok(streams) => {
+                
+
+                return Result::Ok(streams.len())
+            },
+            Err(_) => {
+                let error = ErrorKind::Thread;
+                let result = Result::Err(ProtocolError{
+                    kind: error,
+                    msg: String::from("Error requesting stream lock")
+                });
+                return result;
+            }
+        }
     }
 }

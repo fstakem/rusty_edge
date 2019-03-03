@@ -5,7 +5,7 @@ use chrono::prelude::*;
 use edge_ingression::Protocol;
 use edge_ingression::ServiceInfo;
 use edge_ingression::Msg;
-use edge_ingression::Stream;
+use edge_ingression::StreamInfo;
 use edge_ingression::StoreType;
 use edge_ingression::Router;
 use edge_ingression::MsgData;
@@ -72,7 +72,7 @@ fn test_mqtt_service() {
         deserializer: String::from("json")
     };
 
-    let simple_stream = Stream {
+    let simple_stream = StreamInfo {
         name: String::from("Temp sensor"),
         sensor_id: String::from("temp_sensor_1"),
         store_type: StoreType::InProcessMemory
@@ -81,16 +81,22 @@ fn test_mqtt_service() {
     let mut router = Router::new();
     let service_name = service_info.name.clone();
     router.add_service(service_info);
-    let route = router.add_route(service_name.as_str(), &simple_stream);
+    let route = router.add_route(service_name.as_str(), simple_stream);
     println!("Route: {:?}", route);
     router.start();
 
     let topic = "test/";
-    println!("1");
+    println!("Msg #1");
     send_simple_data(&router, service_name.as_str(), topic);
-    println!("2");
+    println!("");
+
+    println!("Msg #2");
     send_descriptive_data(&router, service_name.as_str(), topic);
-    println!("3");
+    println!("");
+
+    println!("Msg #3");
     send_window_data(&router, service_name.as_str(), topic);
+    println!("");
+
     loop {}
 }

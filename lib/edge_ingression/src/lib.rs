@@ -22,6 +22,7 @@ pub struct Event {
     pub timestamp: DateTime<Utc>
 }
 
+#[derive(Clone)]
 pub enum StoreType {
     InProcessMemory,
     Redis
@@ -84,6 +85,13 @@ pub enum ErrorKind {
 }
 
 pub struct Stream {
+    pub name: String,
+    pub sensor_id: String,
+    pub store_type: StoreType
+}
+
+#[derive(Clone)]
+pub struct StreamInfo {
     pub name: String,
     pub sensor_id: String,
     pub store_type: StoreType

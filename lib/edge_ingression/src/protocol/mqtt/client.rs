@@ -1,4 +1,3 @@
-use std::thread;
 use std::time::Duration;
 use std::sync::mpsc::Sender;
 
@@ -9,27 +8,19 @@ use super::super::super::Msg;
 use super::super::super::ServiceInfo;
 use super::super::super::deserializer::json::Json;
 
+
 pub struct Client {
     paho: paho_mqtt::AsyncClient
 }
 
 unsafe impl Send for Client {}
 
-fn on_connect_success(paho_client: &paho_mqtt::AsyncClient, msgid: u16) {
+fn on_connect_success(_paho_client: &paho_mqtt::AsyncClient, _msgid: u16) {
     println!("Connection to MQTT broker succeeded");
 }
 
-fn on_connect_failure(paho_client: &paho_mqtt::AsyncClient, msgid: u16, rc: i32) {
+fn on_connect_failure(_paho_client: &paho_mqtt::AsyncClient, _msgid: u16, rc: i32) {
     println!("Connection to MQTT broker failed with error code: {}", rc);
-}
-
-fn on_msg(paho_client: &paho_mqtt::AsyncClient, msg: Option<paho_mqtt::Message>) {
-    println!("ON MSG");
-    if let Some(msg) = msg {
-       let topic = msg.topic();
-       let payload_str = msg.payload_str();
-       println!("MQTT ->>>>>{} - {}", topic, payload_str);
-   }
 }
 
 
@@ -47,7 +38,7 @@ impl Client {
             .client_id("rust_async_consumer")
             .finalize();
 
-        let mut paho = match paho_mqtt::AsyncClient::new(create_opts) {
+        let paho = match paho_mqtt::AsyncClient::new(create_opts) {
             Ok(paho) => paho,
             Err(e) => {
                 println!("Error creating the MQTT client: {:?}", e);
@@ -55,30 +46,26 @@ impl Client {
            },
         };
 
-        paho.set_connection_lost_callback(|paho_client: &paho_mqtt::AsyncClient| {
+        let mut client = Client {
+            paho: paho
+        };
+
+        client.paho.set_connection_lost_callback(|_paho_client: &paho_mqtt::AsyncClient| {
             println!("Connection lost to the MQTT broker");
         });
 
-        paho.set_message_callback(on_msg);
-        
         let deserializer = match service_info.deserializer.as_ref() {
             "json" => { Json{} }
             _ => return None
         };
 
-        let mut client = Client {
-            paho: paho
-        };
-
-        client.paho.set_message_callback(move |paho_client, msg| {
+        client.paho.set_message_callback(move |_paho_client, msg| {
             if let Some(msg) = msg {
                 let topic = msg.topic();
                 let payload_str = msg.payload_str();
-                println!("{} - {}", topic, payload_str);
+                println!("MQTT msg topic: {} data: {}", topic, payload_str);
 
-                println!("MQTT client received: {}", msg);
-
-                match deserializer.parse_msg(&msg.payload_str()) {
+                match deserializer.parse_msg(&payload_str) {
                     Some(msg) => {
                         transmitter.send(msg);
                     },
@@ -88,7 +75,7 @@ impl Client {
                 }
             }
         });
-
+        
         Some(client)
     }
 
@@ -106,9 +93,8 @@ impl Client {
             let result = self.paho.connect_with_callbacks(conn_opts, on_connect_success, on_connect_failure);
 
             if let Err(e) = result.wait() {
-                println!("Error connecting: {:?}", e);
+                println!("Error connecting to MQTT broker: {:?}", e);
             }
-            //thread::sleep(Duration::from_millis(2500));
 
             return Ok(());
         }
@@ -119,7 +105,7 @@ impl Client {
     }
 
     pub fn start_subscriber(&mut self, protocol: Protocol) -> Result<(), ProtocolError> {
-        println!("Subscribing to topics...");
+        println!("Subscribing to MQTT topics...");
         let subscriptions = protocol.sub_topics;
         let qos = [1, 1];
         self.paho.subscribe_many(&subscriptions, &qos);
@@ -133,7 +119,7 @@ impl Client {
 
         let msg_str = match serde_json::to_string(&msg) {
             Ok(msg_str) => {
-                println!("{:?}", msg_str);
+                println!("Msg: {:?}", msg_str);
                 msg_str
             },
             Err(_) => {
@@ -164,7 +150,6 @@ impl Client {
             return Ok(());
         }
 
-        println!("NOT CONNECTED");
         let error = ErrorKind::Mqtt;
         let result = Result::Err(ProtocolError{
             kind: error,
@@ -175,6 +160,7 @@ impl Client {
     }
 
     pub fn disconnect(&self) -> Result<(), ProtocolError> {
+        println!("Attempting to disconnect from MQTT broker...");
         if self.paho.is_connected() {
             self.paho.disconnect(None);
             return Result::Ok(());
