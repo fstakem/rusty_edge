@@ -11,12 +11,11 @@ use super::Msg;
 use super::Stream;
 use super::ServiceInfo;
 
-#[derive(Clone)]
 pub struct Service<'a> {
     pub name: String,
     service_info: ServiceInfo,
     streams: HashMap<String, &'a Stream>,
-    client: Arc<Mutex<Client>>,
+    client: Client,
     rx: Arc<Mutex<Receiver<Msg>>>,
 }
 
@@ -37,7 +36,7 @@ impl<'a> Service<'a>{
             name:  name,
             service_info: service_info,
             streams: HashMap::new(),
-            client: Arc::new(Mutex::new(client)),
+            client: client,
             rx: Arc::new(Mutex::new(rx))
         };
 
@@ -49,53 +48,23 @@ impl<'a> Service<'a>{
     }
 
     pub fn start(&mut self) -> Result<(), ProtocolError> {
-        println!("Starting mqtt service...");
-
-        match self.client.lock() {
-            Ok(mut client) => {
-                client.connect();
-            }
-            Err(_) => {
-                println!("Error requesting lock");
-                let error = ErrorKind::Thread;
-                let result = Result::Err(ProtocolError{
-                    kind: error,
-                    msg: "Error requesting lock".to_string()
-                });
-                return result;
-            }
-        }
-
-        let client_clone = self.client.clone();
+        println!("Starting service...");
+        self.client.connect();
         let protocol = self.service_info.protocol.clone();
-
-        let paho_thread = thread::spawn(move || {
-            match client_clone.lock() {
-               Ok(mut client) => client.start_subscriber(protocol),
-               Err(_) => {
-                    println!("Error requesting client lock");
-                    let error = ErrorKind::Thread;
-                    let result = Result::Err(ProtocolError{
-                        kind: error,
-                        msg: "Error starting client".to_string()
-                    });
-                    return result;
-               }
-            }
-        });
+        self.client.start_subscriber(protocol);
 
         let rx_clone = self.rx.clone();
 
         let service_thread = thread::spawn(move || {
             match rx_clone.lock() {
                 Ok(rx) => {
-                    println!("Starting service thread...");
+                    println!("Starting service receiver thread...");
                     let mut iter = rx.iter();
 
                     loop {
-                        println!("waiting.......");
+                        println!("Service waiting for msg.......");
                         let msg = iter.next();
-                        println!("Service received: {:?}", msg);
+                        println!("Service received msg: {:?}", msg);
                     }
 
                     Ok(())
@@ -105,7 +74,7 @@ impl<'a> Service<'a>{
                     let error = ErrorKind::Thread;
                     let result = Result::Err(ProtocolError{
                         kind: error,
-                        msg: "Error starting client".to_string()
+                        msg: "Error requesting receiver lock".to_string()
                     });
                     return result;
                 }
@@ -117,26 +86,13 @@ impl<'a> Service<'a>{
     }
 
     pub fn stop(&self) -> Result<(), ProtocolError> {
-        println!("Stopping mqtt service...");
-
-        match self.client.lock() {
-            Ok(client) => {
-                return client.disconnect();
-            }
-            Err(_) => {
-                println!("Error requesting lock");
-                let error = ErrorKind::Thread;
-                let result = Result::Err(ProtocolError{
-                    kind: error,
-                    msg: "Error requesting lock".to_string()
-                });
-                return result;
-            }
-        }
+        println!("Stopping service...");
+        self.client.disconnect()
     }
 
     pub fn restart(&mut self) -> Result<(), ProtocolError> {
-        println!("Restarting mqtt service...");
+        println!("Restarting service...");
+
         match self.stop() {
             Ok(_) => {
                 self.start()
@@ -146,47 +102,16 @@ impl<'a> Service<'a>{
     }
 
     pub fn send_msg(&self, topic: Option<&str>, msg: &Msg) -> Result<(), ProtocolError> {
-        println!("++++++++++++++++++++++-> Service trying to get lock");
-        match self.client.lock() {
-            Ok(client) => {
-                if let Some(new_topic) = topic {
-                    println!("++++++++++++++++++++++-> Service sending msg");
-                    return client.send_msg(new_topic, msg);
-                }
-
-                return client.send_msg(&self.service_info.protocol.pub_topic.to_string(), msg);
-            }
-            Err(_) => {
-                println!("Error requesting lock");
-                let error = ErrorKind::Thread;
-                let result = Result::Err(ProtocolError{
-                    kind: error,
-                    msg: "Error requesting lock".to_string()
-                });
-                return result;
-            }
-        }
+        // If topic use otherwise use default
+        self.client.send_msg(&self.service_info.protocol.pub_topic.to_string(), msg)
     }
 
     fn receive_msgs(&self) {
 
     }
 
-    pub fn is_connected(&self) -> Result<(bool), ProtocolError> {
-        match self.client.lock() {
-            Ok(client) => {
-                return Result::Ok(client.is_connected());
-            }
-            Err(_) => {
-                println!("Error requesting lock");
-                let error = ErrorKind::Thread;
-                let result = Result::Err(ProtocolError{
-                    kind: error,
-                    msg: "Error requesting lock".to_string()
-                });
-                return result;
-            }
-        }
+    pub fn is_connected(&self) -> bool {
+        self.client.is_connected()
     }
 
     pub fn add_stream(&mut self, stream: &'a Stream) -> Result<(), ProtocolError> {
