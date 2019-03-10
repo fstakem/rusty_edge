@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use super::Service;
 use super::Msg;
 use super::Route;
-use super::StreamInfo;
-use super::ServiceInfo;
+use edge_core::StreamInfo;
+use edge_core::ServiceInfo;
 
 pub struct Router {
     services: HashMap<String, Service>

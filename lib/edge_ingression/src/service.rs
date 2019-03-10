@@ -9,8 +9,8 @@ use super::ProtocolError;
 use super::ErrorKind;
 use super::Msg;
 use super::Stream;
-use super::StreamInfo;
-use super::ServiceInfo;
+use edge_core::StreamInfo;
+use edge_core::ServiceInfo;
 
 pub struct Service {
     pub name: String,
@@ -141,7 +141,7 @@ impl Service {
                 let stream = Stream {
                     name: stream_info.name.to_string(),
                     sensor_id: stream_info.sensor_id.to_string(),
-                    store_type: stream_info.store_type
+                    store: stream_info.store_type
                 };
 
                 println!("Adding stream: {:?} to service: {:?}", stream.sensor_id, self.name);

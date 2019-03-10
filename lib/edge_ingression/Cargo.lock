@@ -36,10 +36,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "edge_core"
+version = "0.1.0"
+dependencies = [
+ "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "edge_data_store"
+version = "0.1.0"
+dependencies = [
+ "edge_core 0.1.0",
+]
+
+[[package]]
 name = "edge_ingression"
 version = "0.1.0"
 dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "edge_core 0.1.0",
+ "edge_data_store 0.1.0",
  "paho-mqtt 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.86 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.86 (registry+https://github.com/rust-lang/crates.io-index)",

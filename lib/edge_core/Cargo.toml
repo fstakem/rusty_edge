@@ -1,9 +1,8 @@
 [package]
-name = "edge_data_store"
+name = "edge_core"
 version = "0.1.0"
 authors = ["Fredrick Stakem <fstakem@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
-edge_core = { path = "../edge_core" }

@@ -2,13 +2,15 @@ extern crate edge_ingression;
 
 use chrono::prelude::*;
 
-use edge_ingression::Protocol;
-use edge_ingression::ServiceInfo;
+use edge_core::Protocol;
+use edge_core::ServiceInfo;
+use edge_core::DeserializerType;
+use edge_core::StreamInfo;
+use edge_core::StoreType;
 use edge_ingression::Msg;
-use edge_ingression::StreamInfo;
-use edge_ingression::StoreType;
 use edge_ingression::Router;
 use edge_ingression::MsgData;
+
 
 
 fn send_simple_data(router: &Router, service_name: &str, topic: &str) {
@@ -69,7 +71,7 @@ fn test_mqtt_service() {
         debug: true,
         host: String::from("localhost"),
         protocol: protocol,
-        deserializer: String::from("json")
+        deserializer: DeserializerType::Json
     };
 
     let simple_stream = StreamInfo {

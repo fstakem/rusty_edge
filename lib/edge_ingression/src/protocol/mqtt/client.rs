@@ -3,10 +3,11 @@ use std::sync::mpsc::Sender;
 
 use super::super::super::ProtocolError;
 use super::super::super::ErrorKind;
-use super::super::super::Protocol;
 use super::super::super::Msg;
-use super::super::super::ServiceInfo;
 use super::super::super::deserializer::json::Json;
+use edge_core::Protocol;
+use edge_core::DeserializerType;
+use edge_core::ServiceInfo;
 
 
 pub struct Client {
@@ -54,8 +55,8 @@ impl Client {
             println!("Connection lost to the MQTT broker");
         });
 
-        let deserializer = match service_info.deserializer.as_ref() {
-            "json" => { Json{} }
+        let deserializer = match service_info.deserializer {
+            DeserializerType::Json => { Json{} },
             _ => return None
         };
 

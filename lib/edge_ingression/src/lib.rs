@@ -4,6 +4,8 @@ extern crate paho_mqtt;
 extern crate serde;
 extern crate serde_json;
 extern crate chrono;
+extern crate edge_core;
+extern crate edge_data_store;
 
 use chrono::prelude::*;
 
@@ -18,37 +20,10 @@ pub use self::service::Service;
 
 // Data types
 // -------------------------------------------------------------------------------------------------
-pub struct Event {
-    pub timestamp: DateTime<Utc>
-}
-
-#[derive(Clone, Debug)]
-pub enum StoreType {
-    InProcessMemory,
-    Redis
-}
-
-#[derive(Clone)]
-pub struct ServiceInfo {
-    pub name: String,
-    pub debug: bool,
-    pub host: String,
-    pub protocol: Protocol,
-    pub deserializer: String
-}
-
 #[derive(Debug)]
 pub struct Route {
     pub service_name: String,
     pub stream_name: String
-}
-
-#[derive(Clone)]
-pub struct Protocol {
-    pub name: String,
-    pub port: u32,
-    pub pub_topic: String,
-    pub sub_topics: Vec<String>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -85,17 +60,10 @@ pub enum ErrorKind {
 }
 
 #[derive(Debug)]
-pub struct Stream {
+pub struct Stream<T> {
     pub name: String,
     pub sensor_id: String,
-    pub store_type: StoreType
-}
-
-#[derive(Clone)]
-pub struct StreamInfo {
-    pub name: String,
-    pub sensor_id: String,
-    pub store_type: StoreType
+    pub store: edge_core::StoreType
 }
 
 
