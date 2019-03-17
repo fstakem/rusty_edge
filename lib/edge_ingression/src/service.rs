@@ -11,6 +11,10 @@ use super::Msg;
 use super::Stream;
 use edge_core::StreamInfo;
 use edge_core::ServiceInfo;
+use edge_core::StoreType;
+use edge_data_store::Store;
+use edge_data_store::InMemory;
+
 
 pub struct Service {
     pub name: String,
@@ -138,10 +142,11 @@ impl Service {
     pub fn add_stream(&mut self, stream_info: StreamInfo) -> Result<(), ProtocolError> {
         match self.streams.lock() {
             Ok(mut streams) => {
+                // let store = self.create_store(stream_info.store_type);
                 let stream = Stream {
                     name: stream_info.name.to_string(),
                     sensor_id: stream_info.sensor_id.to_string(),
-                    store: stream_info.store_type
+                    //store: store
                 };
 
                 println!("Adding stream: {:?} to service: {:?}", stream.sensor_id, self.name);
@@ -159,6 +164,19 @@ impl Service {
             }
         }
     }
+
+/*
+    fn create_store(&self, store_type: StoreType) -> Store {
+        match store_type {
+            StoreType::InMemory => {
+                return InMemory::new()
+            },
+            StoreType::Redis => {
+
+            }
+        }
+    }
+*/
 
     pub fn remove_stream(&mut self, key: &str) -> Result<(), ProtocolError> {
         match self.streams.lock() {

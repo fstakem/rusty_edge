@@ -60,10 +60,10 @@ pub enum ErrorKind {
 }
 
 #[derive(Debug)]
-pub struct Stream<T> {
+pub struct Stream {
     pub name: String,
     pub sensor_id: String,
-    pub store: edge_core::StoreType
+    //pub store: T
 }
 
 
